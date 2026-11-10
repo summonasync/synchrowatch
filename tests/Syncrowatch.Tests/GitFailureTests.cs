@@ -37,6 +37,24 @@ public class GitFailureTests
     }
 
     [Fact]
+    public void Classify_HttpErrorCodeReturned_IsAuthFlavored()
+    {
+        GitFailure.Classify(
+                Failing("fatal: unable to access 'https://github.com/acme/repo.git/': The requested URL returned error: 403"),
+                "validate")
+            .ShouldBeOfType<GitAuthenticationException>();
+    }
+
+    [Theory]
+    [InlineData("error: Your local changes to the following files would be overwritten by merge:\r\n\tnotes.txt\r\nPlease commit your changes or stash them before you merge.\r\nAborting")]
+    [InlineData("error: The following untracked working tree files would be overwritten by merge:\r\n\tpeer.txt\r\nPlease move or remove them before you merge.\r\nAborting")]
+    [InlineData("error: Untracked working tree file 'f.txt' would be overwritten by merge\r\nfatal: read-tree failed")]
+    public void Classify_DirtyWorkTreeMergeFailure_IsConflict(string stderr)
+    {
+        GitFailure.Classify(Failing(stderr), "pull").Error.Code.ShouldBe("conflict");
+    }
+
+    [Fact]
     public void Classify_MissingRepository_IsNotFound()
     {
         var ex = GitFailure.Classify(Failing("fatal: repository 'https://github.com/acme/none.git/' not found"), "validate");

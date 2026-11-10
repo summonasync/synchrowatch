@@ -11,9 +11,9 @@ public static class SyncConfigValidation
             return SyncError.Invalid("watched folder is not set");
         }
 
-        if (string.IsNullOrWhiteSpace(config.RemoteUrl))
+        if (!IsAcceptableRemoteUrl(config.RemoteUrl))
         {
-            return SyncError.Invalid("remote url is not set");
+            return SyncError.Invalid("remote url must be an https or ssh git address");
         }
 
         if (string.IsNullOrWhiteSpace(config.Branch))
@@ -52,5 +52,45 @@ public static class SyncConfigValidation
         }
 
         return null;
+    }
+
+    public static bool IsAcceptableRemoteUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url) || url.StartsWith('-'))
+        {
+            return false;
+        }
+
+        foreach (var scheme in (string[])[HttpsPrefix, SshPrefix])
+        {
+            if (url.StartsWith(scheme, StringComparison.OrdinalIgnoreCase))
+            {
+                return HasHost(url[scheme.Length..]);
+            }
+        }
+
+        return IsScpLike(url);
+    }
+
+    private const string HttpsPrefix = "https://";
+    private const string SshPrefix = "ssh://";
+
+    private static bool HasHost(string rest)
+    {
+        var host = rest.Split('/', 2)[0].Trim();
+        return host.Length > 0 && host.Contains('.');
+    }
+
+    private static bool IsScpLike(string url)
+    {
+        var colon = url.IndexOf(':');
+        var at = url.IndexOf('@');
+        if (colon <= 0 || at <= 0 || at >= colon)
+        {
+            return false;
+        }
+
+        var host = url[(at + 1)..colon];
+        return host.Length > 0 && colon < url.Length - 1;
     }
 }

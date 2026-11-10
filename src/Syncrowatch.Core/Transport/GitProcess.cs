@@ -5,7 +5,7 @@ namespace Syncrowatch.Core.Transport;
 
 public sealed class GitProcess : IGitRunner
 {
-    private const int MinimumSecretLength = 16;
+    private const int MinimumSecretLength = 8;
 
     private readonly string _fileName;
 
@@ -22,7 +22,7 @@ public sealed class GitProcess : IGitRunner
 
         try
         {
-            await process.WaitForExitAsync(timeoutSource.Token);
+            await process.WaitForExitAsync(timeoutSource.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -37,7 +37,9 @@ public sealed class GitProcess : IGitRunner
             throw new GitTimeoutException(invocation.Timeout);
         }
 
-        return Redact(new GitCommandResult(process.ExitCode, await stdout, await stderr), invocation.Environment);
+        return Redact(
+            new GitCommandResult(process.ExitCode, await stdout.ConfigureAwait(false), await stderr.ConfigureAwait(false)),
+            invocation.Environment);
     }
 
     private Process Start(GitInvocation invocation)
@@ -68,7 +70,7 @@ public sealed class GitProcess : IGitRunner
         {
             return Process.Start(startInfo)!;
         }
-        catch (Exception ex) when (ex is Win32Exception or IOException)
+        catch (Win32Exception ex)
         {
             throw new GitMissingException(ex);
         }
@@ -78,7 +80,7 @@ public sealed class GitProcess : IGitRunner
     {
         try
         {
-            await pending;
+            await pending.ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is OperationCanceledException or IOException)
         {

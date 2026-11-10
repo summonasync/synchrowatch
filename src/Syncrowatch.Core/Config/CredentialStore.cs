@@ -20,7 +20,7 @@ public sealed class CredentialStore : ICredentialStore
     {
         try
         {
-            var content = await ReadTokenAsync(cancellationToken);
+            var content = await ReadTokenAsync(cancellationToken).ConfigureAwait(false);
             return new Result<PersonalAccessToken>.Ok(new PersonalAccessToken(content));
         }
         catch (CredentialStoreException ex)
@@ -33,7 +33,7 @@ public sealed class CredentialStore : ICredentialStore
     {
         try
         {
-            await WriteTokenAsync(token, cancellationToken);
+            await WriteTokenAsync(token, cancellationToken).ConfigureAwait(false);
             return new Result<PersonalAccessToken>.Ok(token);
         }
         catch (CredentialStoreException ex)
@@ -59,7 +59,7 @@ public sealed class CredentialStore : ICredentialStore
     {
         try
         {
-            var content = await File.ReadAllTextAsync(_filePath, cancellationToken);
+            var content = await File.ReadAllTextAsync(_filePath, cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(content))
             {
                 throw new CredentialNotFoundException(_filePath);
@@ -86,7 +86,7 @@ public sealed class CredentialStore : ICredentialStore
             await using (var stream = new FileStream(tempPath, CreateOptions()))
             {
                 await using var writer = new StreamWriter(stream);
-                await writer.WriteAsync(token.Value.AsMemory(), cancellationToken);
+                await writer.WriteAsync(token.Value.AsMemory(), cancellationToken).ConfigureAwait(false);
             }
 
             RestrictAccess(tempPath);

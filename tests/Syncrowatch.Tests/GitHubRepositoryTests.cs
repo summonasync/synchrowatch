@@ -130,7 +130,7 @@ public class GitHubRepositoryTests
     [Fact]
     public async Task ListBranch_ListsBareStandInBranches()
     {
-        using var environment = new GlobalGitConfigGuard();
+        using var environment = new GitConfigSandbox();
         using var standIn = new BareStandIn();
         GitCli.Ensure(standIn.BarePath, "update-ref", "refs/heads/archive", GitCli.Head(standIn.PeerPath));
 
@@ -145,7 +145,7 @@ public class GitHubRepositoryTests
     [Fact]
     public async Task Fetch_UpdatesTrackingRefsWithoutMergingWorkRepo()
     {
-        using var environment = new GlobalGitConfigGuard();
+        using var environment = new GitConfigSandbox();
         using var standIn = new BareStandIn();
         var workHeadBefore = GitCli.Head(standIn.WorkPath);
         File.WriteAllText(Path.Combine(standIn.PeerPath, "peer.txt"), "peer change");
@@ -163,7 +163,7 @@ public class GitHubRepositoryTests
     [Fact]
     public async Task Pull_AfterPeerPush_FastForwardsWorkRepo()
     {
-        using var environment = new GlobalGitConfigGuard();
+        using var environment = new GitConfigSandbox();
         using var standIn = new BareStandIn();
         var workHeadBefore = GitCli.Head(standIn.WorkPath);
         File.WriteAllText(Path.Combine(standIn.PeerPath, "peer.txt"), "peer change");
@@ -183,9 +183,28 @@ public class GitHubRepositoryTests
     }
 
     [Fact]
+    public async Task Pull_DirtyWorkTreeWithUntrackedConflict_MapsToConflict()
+    {
+        using var environment = new GitConfigSandbox();
+        using var standIn = new BareStandIn();
+        var workHeadBefore = GitCli.Head(standIn.WorkPath);
+        File.WriteAllText(Path.Combine(standIn.WorkPath, "peer.txt"), "local unsynced copy");
+        File.WriteAllText(Path.Combine(standIn.PeerPath, "peer.txt"), "peer edit");
+        GitCli.CommitAll(standIn.PeerPath, "peer edit");
+        GitCli.Push(standIn.PeerPath, "origin", "main");
+
+        var outcome = await standIn.Repository.Pull("main", CancellationToken.None);
+
+        outcome.ShouldBeOfType<Result<SyncOutcome>.Fail>().Error.Code.ShouldBe("conflict");
+        GitCli.Head(standIn.WorkPath).ShouldBe(workHeadBefore);
+        File.ReadAllText(Path.Combine(standIn.WorkPath, "peer.txt")).ShouldBe("local unsynced copy");
+        environment.AssertRealGlobalConfigUnchanged();
+    }
+
+    [Fact]
     public async Task Push_ToBareStandIn_MovesRemoteTipWithoutCredentialMaterial()
     {
-        using var environment = new GlobalGitConfigGuard();
+        using var environment = new GitConfigSandbox();
         using var standIn = new BareStandIn();
         var remoteBefore = GitCli.Head(standIn.BarePath);
         File.WriteAllText(Path.Combine(standIn.WorkPath, "work.txt"), "work change");
@@ -209,7 +228,7 @@ public class GitHubRepositoryTests
     [Fact]
     public async Task PushForceWithLease_StaleExpectedSha_IsRefusedAndRemoteUntouched()
     {
-        using var environment = new GlobalGitConfigGuard();
+        using var environment = new GitConfigSandbox();
         using var standIn = new BareStandIn();
         var staleSha = GitCli.Head(standIn.WorkPath);
         File.WriteAllText(Path.Combine(standIn.PeerPath, "peer.txt"), "peer advanced");
@@ -226,14 +245,106 @@ public class GitHubRepositoryTests
         environment.AssertRealGlobalConfigUnchanged();
     }
 
+    public static TheoryData<string> Operations => new() { "validate", "fetch", "pull", "push", "force", "list" };
+
+    [Theory]
+    [MemberData(nameof(Operations))]
+    public async Task DashLeadingRemoteUrl_RejectedBeforeAnyGitCall(string operation)
+    {
+        var runner = new FakeGitRunner();
+        var repository = BuildRepository(runner, remoteUrl: "-smuggled/upload-pack-args");
+
+        var code = await FailureCode(repository, operation);
+
+        code.ShouldBe("invalid");
+        runner.Invocations.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Push_LeadingDashBranch_RejectedAsInvalidRefName()
+    {
+        var runner = new FakeGitRunner();
+        var repository = BuildRepository(runner);
+
+        var outcome = await repository.Push("-upstream", CancellationToken.None);
+
+        outcome.ShouldBeOfType<Result<SyncOutcome>.Fail>().Error.Code.ShouldBe("invalid");
+        runner.Invocations.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Push_RefspecColonBranch_RejectedAsInvalidRefName()
+    {
+        var runner = new FakeGitRunner();
+        var repository = BuildRepository(runner);
+
+        var outcome = await repository.Push("main:secret", CancellationToken.None);
+
+        outcome.ShouldBeOfType<Result<SyncOutcome>.Fail>().Error.Code.ShouldBe("invalid");
+        runner.Invocations.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task PushForceWithLease_NonHexExpectedSha_RejectedAsInvalid()
+    {
+        var runner = new FakeGitRunner();
+        var repository = BuildRepository(runner);
+
+        var outcome = await repository.PushForceWithLease("main", "../escape", CancellationToken.None);
+
+        outcome.ShouldBeOfType<Result<SyncOutcome>.Fail>().Error.Code.ShouldBe("invalid");
+        runner.Invocations.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task PushForceWithLease_MatchingRemoteSha_MovesRemoteTip()
+    {
+        using var environment = new GitConfigSandbox();
+        using var standIn = new BareStandIn();
+        File.WriteAllText(Path.Combine(standIn.WorkPath, "work.txt"), "work change");
+        GitCli.CommitAll(standIn.WorkPath, "work edit");
+        var leaseSha = GitCli.Head(standIn.BarePath);
+
+        var outcome = await standIn.Repository.PushForceWithLease("main", leaseSha, CancellationToken.None);
+
+        var ok = outcome.ShouldBeOfType<Result<SyncOutcome>.Ok>();
+        ok.Value.FromSha.ShouldBe(leaseSha);
+        ok.Value.ToSha.ShouldBe(GitCli.Head(standIn.WorkPath));
+        GitCli.Head(standIn.BarePath).ShouldBe(GitCli.Head(standIn.WorkPath));
+        environment.AssertRealGlobalConfigUnchanged();
+    }
+
+    private static async Task<string> FailureCode(GitHubRepository repository, string operation)
+    {
+        switch (operation)
+        {
+            case "validate":
+                return CodeOf(await repository.ValidateRepository(CancellationToken.None));
+            case "fetch":
+                return CodeOf(await repository.Fetch(CancellationToken.None));
+            case "pull":
+                return CodeOf(await repository.Pull("main", CancellationToken.None));
+            case "push":
+                return CodeOf(await repository.Push("main", CancellationToken.None));
+            case "force":
+                return CodeOf(await repository.PushForceWithLease("main", "abc123", CancellationToken.None));
+            default:
+                return CodeOf(await repository.ListBranch(CancellationToken.None));
+        }
+    }
+
+    private static string CodeOf<T>(Result<T> outcome) =>
+        outcome is Result<T>.Fail failure ? failure.Error.Code : throw new InvalidOperationException("expected a failure outcome");
+
     private static GitHubRepository BuildRepository(
         IGitRunner runner,
         string? watchedFolder = null,
-        ICredentialStore? credentials = null) =>
+        ICredentialStore? credentials = null,
+        string? remoteUrl = null) =>
         new(new SyncConfig
         {
             WatchedFolder = watchedFolder ?? Path.GetTempPath(),
-            RemoteUrl = PrivateRepoUrl,
+            RemoteUrl = remoteUrl ?? PrivateRepoUrl,
             Branch = "main",
             Mode = SyncMode.Git,
             Identity = CommitIdentity.Default
@@ -247,37 +358,6 @@ public class GitHubRepositoryTests
         store.Read(Arg.Any<CancellationToken>())
             .Returns(new Result<PersonalAccessToken>.Ok(new PersonalAccessToken(token)));
         return store;
-    }
-
-    private sealed class GlobalGitConfigGuard : IDisposable
-    {
-        private readonly string _globalPath;
-        private readonly string? _before;
-        private readonly string? _previousValue;
-        private readonly string _sandboxPath;
-
-        public GlobalGitConfigGuard()
-        {
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            _globalPath = Path.Combine(home, ".gitconfig");
-            _before = File.Exists(_globalPath) ? File.ReadAllText(_globalPath) : null;
-            _previousValue = Environment.GetEnvironmentVariable("GIT_CONFIG_GLOBAL");
-            _sandboxPath = Path.Combine(TempDir.Create(), "global.gitconfig");
-            Environment.SetEnvironmentVariable("GIT_CONFIG_GLOBAL", _sandboxPath);
-        }
-
-        public void AssertRealGlobalConfigUnchanged()
-        {
-            var after = File.Exists(_globalPath) ? File.ReadAllText(_globalPath) : null;
-            after.ShouldBe(_before);
-            File.Exists(_sandboxPath).ShouldBeFalse();
-        }
-
-        public void Dispose()
-        {
-            Environment.SetEnvironmentVariable("GIT_CONFIG_GLOBAL", _previousValue);
-            Directory.Delete(Path.GetDirectoryName(_sandboxPath)!, true);
-        }
     }
 
     private sealed class BareStandIn : IDisposable

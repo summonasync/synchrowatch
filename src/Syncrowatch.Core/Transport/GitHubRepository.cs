@@ -18,78 +18,82 @@ public sealed class GitHubRepository : IRemoteRepository
         _runner = runner;
     }
 
-    public async Task<Result<RemoteValidation>> ValidateRepository(CancellationToken cancellationToken)
-    {
-        try
+    public Task<Result<RemoteValidation>> ValidateRepository(CancellationToken cancellationToken) =>
+        GuardedAsync<RemoteValidation>(async () =>
         {
-            return await ValidatePrivateRepository(cancellationToken);
-        }
-        catch (GitTransportException ex)
-        {
-            return new Result<RemoteValidation>.Fail(ex.Error);
-        }
-    }
+            GuardRemoteUrl();
+            var probe = await RunProbeAsync(cancellationToken).ConfigureAwait(false);
+            if (probe.Succeeded)
+            {
+                throw new PublicRepositoryException(_config.RemoteUrl);
+            }
 
-    public async Task<Result<IReadOnlyList<RemoteRef>>> Fetch(CancellationToken cancellationToken)
-    {
-        try
+            var probeFailure = GitFailure.Classify(probe, "probe");
+            if (probeFailure is RemoteUnreachableException)
+            {
+                throw probeFailure;
+            }
+
+            var answer = await RunRemoteAsync(
+                [.. CredentialIsolation, "ls-remote", "--symref", _config.RemoteUrl, "HEAD"], null, cancellationToken)
+                .ConfigureAwait(false);
+            GitFailure.EnsureSuccess(answer, "validate");
+
+            return new Result<RemoteValidation>.Ok(
+                new RemoteValidation(true, RemoteRefParser.ParseDefaultBranch(answer.StandardOutput)));
+        });
+
+    public Task<Result<IReadOnlyList<RemoteRef>>> Fetch(CancellationToken cancellationToken) =>
+        GuardedAsync<IReadOnlyList<RemoteRef>>(async () =>
         {
-            await RunRemoteAsync([.. CredentialIsolation, .. IdentityArguments(), "fetch", "--prune", "origin"],
-                _config.WatchedFolder, cancellationToken);
+            GuardRemoteUrl();
+            var fetched = await RunRemoteAsync([.. CredentialIsolation, .. IdentityArguments(), "fetch", "--prune", "origin"],
+                _config.WatchedFolder, cancellationToken).ConfigureAwait(false);
+            GitFailure.EnsureSuccess(fetched, "fetch");
             var tracked = await RunLocalAsync(
-                ["for-each-ref", "--format=%(objectname)%09%(refname)", "refs/remotes/origin/"], cancellationToken);
+                ["for-each-ref", "--format=%(objectname)%09%(refname)", "refs/remotes/origin/"], cancellationToken)
+                .ConfigureAwait(false);
             GitFailure.EnsureSuccess(tracked, "list tracking refs");
 
             return new Result<IReadOnlyList<RemoteRef>>.Ok(RemoteRefParser.ParseTracking(tracked.StandardOutput));
-        }
-        catch (GitTransportException ex)
-        {
-            return new Result<IReadOnlyList<RemoteRef>>.Fail(ex.Error);
-        }
-    }
+        });
 
-    public async Task<Result<SyncOutcome>> Pull(string branch, CancellationToken cancellationToken)
-    {
-        try
+    public Task<Result<SyncOutcome>> Pull(string branch, CancellationToken cancellationToken) =>
+        GuardedAsync<SyncOutcome>(async () =>
         {
+            GuardRemoteUrl();
             var name = GuardBranch(branch);
-            var before = await ReadHeadAsync(cancellationToken);
-            await RunRemoteAsync([.. CredentialIsolation, .. IdentityArguments(), "fetch", "origin", name],
-                _config.WatchedFolder, cancellationToken);
-            await RunLocalAsync([.. IdentityArguments(), "merge", "--ff-only", "FETCH_HEAD"], cancellationToken);
-            var after = await ReadHeadAsync(cancellationToken);
+            var before = await ReadHeadAsync(cancellationToken).ConfigureAwait(false);
+            var fetched = await RunRemoteAsync([.. CredentialIsolation, .. IdentityArguments(), "fetch", "origin", name],
+                _config.WatchedFolder, cancellationToken).ConfigureAwait(false);
+            GitFailure.EnsureSuccess(fetched, "fetch");
+            var merged = await RunLocalAsync([.. IdentityArguments(), "merge", "--ff-only", "FETCH_HEAD"], cancellationToken)
+                .ConfigureAwait(false);
+            GitFailure.EnsureSuccess(merged, "merge");
+            var after = await ReadHeadAsync(cancellationToken).ConfigureAwait(false);
 
             return new Result<SyncOutcome>.Ok(new SyncOutcome(name, before, after));
-        }
-        catch (GitTransportException ex)
-        {
-            return new Result<SyncOutcome>.Fail(ex.Error);
-        }
-    }
+        });
 
-    public async Task<Result<SyncOutcome>> Push(string branch, CancellationToken cancellationToken)
-    {
-        try
+    public Task<Result<SyncOutcome>> Push(string branch, CancellationToken cancellationToken) =>
+        GuardedAsync<SyncOutcome>(async () =>
         {
+            GuardRemoteUrl();
             var name = GuardBranch(branch);
-            var remoteBefore = await RemoteTipAsync(name, cancellationToken);
+            var remoteBefore = await RemoteTipAsync(name, cancellationToken).ConfigureAwait(false);
             var pushed = await RunRemoteAsync(
                 [.. CredentialIsolation, .. IdentityArguments(), "push", "origin", name],
-                _config.WatchedFolder, cancellationToken);
+                _config.WatchedFolder, cancellationToken).ConfigureAwait(false);
             GitFailure.EnsureSuccess(pushed, "push");
 
-            return new Result<SyncOutcome>.Ok(new SyncOutcome(name, remoteBefore, await ReadHeadAsync(cancellationToken)));
-        }
-        catch (GitTransportException ex)
-        {
-            return new Result<SyncOutcome>.Fail(ex.Error);
-        }
-    }
+            return new Result<SyncOutcome>.Ok(
+                new SyncOutcome(name, remoteBefore, await ReadHeadAsync(cancellationToken).ConfigureAwait(false)));
+        });
 
-    public async Task<Result<SyncOutcome>> PushForceWithLease(string branch, string expectedRemoteSha, CancellationToken cancellationToken)
-    {
-        try
+    public Task<Result<SyncOutcome>> PushForceWithLease(string branch, string expectedRemoteSha, CancellationToken cancellationToken) =>
+        GuardedAsync<SyncOutcome>(async () =>
         {
+            GuardRemoteUrl();
             var name = GuardBranch(branch);
             GuardSha(expectedRemoteSha);
             var pushed = await RunRemoteAsync(
@@ -98,53 +102,35 @@ public sealed class GitHubRepository : IRemoteRepository
                  $"--force-with-lease=refs/heads/{name}:{expectedRemoteSha}",
                  "origin",
                  name],
-                _config.WatchedFolder, cancellationToken);
+                _config.WatchedFolder, cancellationToken).ConfigureAwait(false);
             GitFailure.EnsureSuccess(pushed, "force push with lease");
 
-            return new Result<SyncOutcome>.Ok(new SyncOutcome(name, expectedRemoteSha, await ReadHeadAsync(cancellationToken)));
-        }
-        catch (GitTransportException ex)
-        {
-            return new Result<SyncOutcome>.Fail(ex.Error);
-        }
-    }
+            return new Result<SyncOutcome>.Ok(
+                new SyncOutcome(name, expectedRemoteSha, await ReadHeadAsync(cancellationToken).ConfigureAwait(false)));
+        });
 
-    public async Task<Result<IReadOnlyList<RemoteRef>>> ListBranch(CancellationToken cancellationToken)
-    {
-        try
+    public Task<Result<IReadOnlyList<RemoteRef>>> ListBranch(CancellationToken cancellationToken) =>
+        GuardedAsync<IReadOnlyList<RemoteRef>>(async () =>
         {
+            GuardRemoteUrl();
             var listing = await RunRemoteAsync(
-                [.. CredentialIsolation, "ls-remote", "--heads", _config.RemoteUrl], null, cancellationToken);
+                [.. CredentialIsolation, "ls-remote", "--heads", _config.RemoteUrl], null, cancellationToken)
+                .ConfigureAwait(false);
             GitFailure.EnsureSuccess(listing, "list branches");
 
             return new Result<IReadOnlyList<RemoteRef>>.Ok(RemoteRefParser.ParseHeads(listing.StandardOutput));
+        });
+
+    private static async Task<Result<T>> GuardedAsync<T>(Func<Task<Result<T>>> operation)
+    {
+        try
+        {
+            return await operation().ConfigureAwait(false);
         }
         catch (GitTransportException ex)
         {
-            return new Result<IReadOnlyList<RemoteRef>>.Fail(ex.Error);
+            return new Result<T>.Fail(ex.Error);
         }
-    }
-
-    private async Task<Result<RemoteValidation>> ValidatePrivateRepository(CancellationToken cancellationToken)
-    {
-        var probe = await RunProbeAsync(cancellationToken);
-        if (probe.Succeeded)
-        {
-            throw new PublicRepositoryException(_config.RemoteUrl);
-        }
-
-        var probeFailure = GitFailure.Classify(probe, "probe");
-        if (probeFailure is RemoteUnreachableException)
-        {
-            throw probeFailure;
-        }
-
-        var answer = await RunRemoteAsync(
-            [.. CredentialIsolation, "ls-remote", "--symref", _config.RemoteUrl, "HEAD"], null, cancellationToken);
-        GitFailure.EnsureSuccess(answer, "validate");
-
-        return new Result<RemoteValidation>.Ok(
-            new RemoteValidation(true, RemoteRefParser.ParseDefaultBranch(answer.StandardOutput)));
     }
 
     private Task<GitCommandResult> RunProbeAsync(CancellationToken cancellationToken)
@@ -167,16 +153,16 @@ public sealed class GitHubRepository : IRemoteRepository
                 Arguments = command,
                 WorkingDirectory = workingDirectory,
                 Environment = GitEnv.PromptDisabled
-            }, cancellationToken);
+            }, cancellationToken).ConfigureAwait(false);
         }
 
-        using var injector = CredentialInjector.Create(await RequireToken(cancellationToken));
+        using var injector = CredentialInjector.Create(await RequireToken(cancellationToken).ConfigureAwait(false));
         return await _runner.RunAsync(new GitInvocation
         {
             Arguments = command,
             WorkingDirectory = workingDirectory,
             Environment = Merge(GitEnv.PromptDisabled, injector.Environment)
-        }, cancellationToken);
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private Task<GitCommandResult> RunLocalAsync(IReadOnlyList<string> command, CancellationToken cancellationToken)
@@ -191,7 +177,7 @@ public sealed class GitHubRepository : IRemoteRepository
 
     private async Task<PersonalAccessToken> RequireToken(CancellationToken cancellationToken)
     {
-        var outcome = await _credentials.Read(cancellationToken);
+        var outcome = await _credentials.Read(cancellationToken).ConfigureAwait(false);
         return outcome switch
         {
             Result<PersonalAccessToken>.Ok token => token.Value,
@@ -202,7 +188,7 @@ public sealed class GitHubRepository : IRemoteRepository
 
     private async Task<string> ReadHeadAsync(CancellationToken cancellationToken)
     {
-        var head = await RunLocalAsync(["rev-parse", "HEAD"], cancellationToken);
+        var head = await RunLocalAsync(["rev-parse", "HEAD"], cancellationToken).ConfigureAwait(false);
         GitFailure.EnsureSuccess(head, "read HEAD");
         return head.StandardOutput.Trim();
     }
@@ -210,7 +196,8 @@ public sealed class GitHubRepository : IRemoteRepository
     private async Task<string> RemoteTipAsync(string branch, CancellationToken cancellationToken)
     {
         var listing = await RunRemoteAsync(
-            [.. CredentialIsolation, "ls-remote", _config.RemoteUrl, $"refs/heads/{branch}"], null, cancellationToken);
+            [.. CredentialIsolation, "ls-remote", _config.RemoteUrl, $"refs/heads/{branch}"], null, cancellationToken)
+            .ConfigureAwait(false);
         GitFailure.EnsureSuccess(listing, "list remote tip");
         var line = listing.StandardOutput
             .Split('\n')
@@ -222,9 +209,17 @@ public sealed class GitHubRepository : IRemoteRepository
     private IReadOnlyList<string> IdentityArguments() =>
         ["-c", $"user.name={_config.Identity.Name}", "-c", $"user.email={_config.Identity.Email}"];
 
+    private void GuardRemoteUrl()
+    {
+        if (string.IsNullOrWhiteSpace(_config.RemoteUrl) || _config.RemoteUrl.StartsWith('-'))
+        {
+            throw new GitOperationException(SyncError.Invalid("remote url is not a usable git target"));
+        }
+    }
+
     private static string GuardBranch(string branch)
     {
-        if (string.IsNullOrWhiteSpace(branch) || branch.StartsWith('-'))
+        if (string.IsNullOrWhiteSpace(branch) || branch.StartsWith('-') || branch.Contains(':'))
         {
             throw new GitOperationException(SyncError.Invalid($"branch '{branch}' is not a usable ref name"));
         }

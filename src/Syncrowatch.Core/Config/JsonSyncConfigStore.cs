@@ -28,7 +28,7 @@ public sealed class JsonSyncConfigStore : ISyncConfigStore
         try
         {
             await using var stream = File.OpenRead(_filePath);
-            var config = await JsonSerializer.DeserializeAsync<SyncConfig>(stream, SerializerOptions, cancellationToken);
+            var config = await JsonSerializer.DeserializeAsync<SyncConfig>(stream, SerializerOptions, cancellationToken).ConfigureAwait(false);
             if (config is null)
             {
                 return new Result<SyncConfig>.Fail(SyncError.Invalid("settings file contains no configuration"));
@@ -61,7 +61,7 @@ public sealed class JsonSyncConfigStore : ISyncConfigStore
             Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
             await using (var stream = File.Create(tempPath))
             {
-                await JsonSerializer.SerializeAsync(stream, config, SerializerOptions, cancellationToken);
+                await JsonSerializer.SerializeAsync(stream, config, SerializerOptions, cancellationToken).ConfigureAwait(false);
             }
 
             File.Move(tempPath, _filePath, true);

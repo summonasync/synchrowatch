@@ -20,8 +20,15 @@ public static class GitFailure
         "could not read password",
         "invalid username or password",
         "terminal prompts disabled",
-        "http 401",
-        "http 403"
+        "returned error: 401",
+        "returned error: 403"
+    ];
+
+    private static readonly string[] DirtyTreeMarkers =
+    [
+        "would be overwritten by merge",
+        "your local changes to the following files",
+        "read-tree failed"
     ];
 
     public static GitTransportException Classify(GitCommandResult result, string operation)
@@ -41,7 +48,8 @@ public static class GitFailure
             return new GitAuthenticationException(message);
         }
 
-        if (message.Contains("fast-forward", StringComparison.OrdinalIgnoreCase)
+        if (ContainsAny(message, DirtyTreeMarkers)
+            || message.Contains("fast-forward", StringComparison.OrdinalIgnoreCase)
             || message.Contains("failed to push some refs", StringComparison.OrdinalIgnoreCase))
         {
             return new GitOperationException(SyncError.Conflict(message));
