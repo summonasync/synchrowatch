@@ -1,0 +1,7 @@
+bin/
+obj/
+.synchro/
+*.synchr
+*.user
+.vs/
+.idea/
