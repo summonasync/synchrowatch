@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Syncrowatch.App;
 using Syncrowatch.Core;
+using Syncrowatch.Core.Config;
 using Xunit;
 
 namespace Syncrowatch.Tests;
@@ -26,12 +27,13 @@ public class CompositionRootTests
     }
 
     [Fact]
-    public void Build_BeforeImplementationTasks_SeamsUnregistered()
+    public void Build_AfterConfigStoresLanded_RegistersStoresOnly()
     {
         var provider = CompositionRoot.Build();
 
+        provider.GetService<ISyncConfigStore>().ShouldNotBeNull();
+        provider.GetService<ICredentialStore>().ShouldNotBeNull();
         provider.GetService<ISyncEngine>().ShouldBeNull();
         provider.GetService<IRemoteRepository>().ShouldBeNull();
-        provider.GetService<ISyncConfigStore>().ShouldBeNull();
     }
 }

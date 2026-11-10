@@ -1,6 +1,6 @@
 using Synchro.Core;
 
-namespace Syncrowatch.Core;
+namespace Syncrowatch.Core.Config;
 
 public interface ISyncConfigStore
 {

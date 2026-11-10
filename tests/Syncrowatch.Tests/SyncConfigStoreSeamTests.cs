@@ -1,7 +1,7 @@
 using NSubstitute;
 using Shouldly;
 using Synchro.Core;
-using Syncrowatch.Core;
+using Syncrowatch.Core.Config;
 using Xunit;
 
 namespace Syncrowatch.Tests;
@@ -14,6 +14,7 @@ public class SyncConfigStoreSeamTests
         RemoteUrl = "git@github.com:peer/notes.git",
         Branch = "main",
         Mode = Synchro.Core.SyncMode.Git,
+        Debounce = TimeSpan.FromSeconds(18),
         PollInterval = TimeSpan.FromSeconds(30)
     };
 
