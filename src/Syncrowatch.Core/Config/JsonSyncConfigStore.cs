@@ -29,8 +29,13 @@ public sealed class JsonSyncConfigStore : ISyncConfigStore
         {
             await using var stream = File.OpenRead(_filePath);
             var config = await JsonSerializer.DeserializeAsync<SyncConfig>(stream, SerializerOptions, cancellationToken);
-            return config is null
-                ? new Result<SyncConfig>.Fail(SyncError.Invalid("settings file contains no configuration"))
+            if (config is null)
+            {
+                return new Result<SyncConfig>.Fail(SyncError.Invalid("settings file contains no configuration"));
+            }
+
+            return SyncConfigValidation.Validate(config) is { } problem
+                ? new Result<SyncConfig>.Fail(problem)
                 : new Result<SyncConfig>.Ok(config);
         }
         catch (JsonException ex)
@@ -45,11 +50,21 @@ public sealed class JsonSyncConfigStore : ISyncConfigStore
 
     public async Task<Result<SyncConfig>> Save(SyncConfig config, CancellationToken cancellationToken)
     {
+        if (SyncConfigValidation.Validate(config) is { } problem)
+        {
+            return new Result<SyncConfig>.Fail(problem);
+        }
+
+        var tempPath = _filePath + ".tmp";
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
-            await using var stream = File.Create(_filePath);
-            await JsonSerializer.SerializeAsync(stream, config, SerializerOptions, cancellationToken);
+            await using (var stream = File.Create(tempPath))
+            {
+                await JsonSerializer.SerializeAsync(stream, config, SerializerOptions, cancellationToken);
+            }
+
+            File.Move(tempPath, _filePath, true);
             return new Result<SyncConfig>.Ok(config);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

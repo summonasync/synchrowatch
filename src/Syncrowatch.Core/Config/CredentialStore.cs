@@ -1,6 +1,8 @@
+using System.Security;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using Synchro.Core;
+using Syncrowatch.Core;
 
 namespace Syncrowatch.Core.Config;
 
@@ -40,16 +42,16 @@ public sealed class CredentialStore : ICredentialStore
         }
     }
 
-    public async Task<Result<PersonalAccessToken>> Delete(CancellationToken cancellationToken)
+    public Task<Result<Unit>> Delete(CancellationToken cancellationToken)
     {
         try
         {
-            var content = await DeleteTokenAsync(cancellationToken);
-            return new Result<PersonalAccessToken>.Ok(new PersonalAccessToken(content));
+            DeleteTokenFile();
+            return Task.FromResult<Result<Unit>>(new Result<Unit>.Ok(Unit.Value));
         }
         catch (CredentialStoreException ex)
         {
-            return new Result<PersonalAccessToken>.Fail(ex.Error);
+            return Task.FromResult<Result<Unit>>(new Result<Unit>.Fail(ex.Error));
         }
     }
 
@@ -77,16 +79,18 @@ public sealed class CredentialStore : ICredentialStore
 
     private async Task WriteTokenAsync(PersonalAccessToken token, CancellationToken cancellationToken)
     {
+        var tempPath = _filePath + ".tmp";
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
-            await using (var stream = new FileStream(_filePath, CreateOptions()))
+            await using (var stream = new FileStream(tempPath, CreateOptions()))
             {
                 await using var writer = new StreamWriter(stream);
                 await writer.WriteAsync(token.Value.AsMemory(), cancellationToken);
             }
 
-            RestrictAccess();
+            RestrictAccess(tempPath);
+            File.Move(tempPath, _filePath, true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -94,13 +98,16 @@ public sealed class CredentialStore : ICredentialStore
         }
     }
 
-    private async Task<string> DeleteTokenAsync(CancellationToken cancellationToken)
+    private void DeleteTokenFile()
     {
-        var content = await ReadTokenAsync(cancellationToken);
         try
         {
+            if (!File.Exists(_filePath))
+            {
+                throw new CredentialNotFoundException(_filePath);
+            }
+
             File.Delete(_filePath);
-            return content;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -125,21 +132,31 @@ public sealed class CredentialStore : ICredentialStore
         return options;
     }
 
-    private void RestrictAccess()
+    private void RestrictAccess(string path)
     {
-        if (OperatingSystem.IsWindows())
+        try
         {
-            var file = new FileInfo(_filePath);
-            var security = file.GetAccessControl();
-            security.SetAccessRuleProtection(true, false);
-            security.SetAccessRule(new FileSystemAccessRule(
-                WindowsIdentity.GetCurrent().User!,
-                FileSystemRights.FullControl,
-                AccessControlType.Allow));
-            file.SetAccessControl(security);
-            return;
-        }
+            if (OperatingSystem.IsWindows())
+            {
+                var user = WindowsIdentity.GetCurrent().User;
+                if (user is null)
+                {
+                    throw new SecurityException("current windows identity exposes no user sid");
+                }
 
-        File.SetUnixFileMode(_filePath, OwnerOnlyMode);
+                var file = new FileInfo(path);
+                var security = file.GetAccessControl();
+                security.SetAccessRuleProtection(true, false);
+                security.SetAccessRule(new FileSystemAccessRule(user, FileSystemRights.FullControl, AccessControlType.Allow));
+                file.SetAccessControl(security);
+                return;
+            }
+
+            File.SetUnixFileMode(path, OwnerOnlyMode);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or IdentityNotMappedException)
+        {
+            throw new CredentialStoreUnavailableException("credential file permissions could not be restricted", ex);
+        }
     }
 }

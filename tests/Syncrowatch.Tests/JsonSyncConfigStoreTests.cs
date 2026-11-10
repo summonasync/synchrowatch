@@ -30,6 +30,81 @@ public class JsonSyncConfigStoreTests
             var outcome = await store.Load(CancellationToken.None);
 
             outcome.ShouldBeOfType<Result<SyncConfig>.Ok>().Value.ShouldBe(Config);
+            File.Exists(store.FilePath + ".tmp").ShouldBeFalse();
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Theory]
+    [InlineData("""{"WatchedFolder":"/home/peer/notes","RemoteUrl":"https://github.com/peer/notes.git","Branch":null,"Mode":"Git"}""")]
+    [InlineData("""{"WatchedFolder":" ","RemoteUrl":"https://github.com/peer/notes.git","Branch":"main","Mode":"Git"}""")]
+    [InlineData("""{"WatchedFolder":"/home/peer/notes","RemoteUrl":"https://github.com/peer/notes.git","Branch":"main","Mode":"Git","Identity":null}""")]
+    [InlineData("""{"WatchedFolder":"/home/peer/notes","RemoteUrl":"https://github.com/peer/notes.git","Branch":"main","Mode":"Git","Identity":{"Name":"Peer","Email":""}}""")]
+    public async Task Load_NullOrEmptyRequiredField_ReturnsInvalid(string json)
+    {
+        var dir = TempDir.Create();
+        try
+        {
+            await File.WriteAllTextAsync(SyncrowatchPaths.SettingsFile(dir), json);
+
+            var outcome = await new JsonSyncConfigStore(dir).Load(CancellationToken.None);
+
+            outcome.ShouldBeOfType<Result<SyncConfig>.Fail>().Error.Code.ShouldBe("invalid");
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public async Task Load_OutOfRangeDebounce_ReturnsInvalid()
+    {
+        var dir = TempDir.Create();
+        try
+        {
+            await File.WriteAllTextAsync(
+                SyncrowatchPaths.SettingsFile(dir),
+                """
+                {
+                  "WatchedFolder": "/home/peer/notes",
+                  "RemoteUrl": "https://github.com/peer/notes.git",
+                  "Branch": "main",
+                  "Mode": "Git",
+                  "Debounce": "00:00:03"
+                }
+                """);
+
+            var outcome = await new JsonSyncConfigStore(dir).Load(CancellationToken.None);
+
+            var fail = outcome.ShouldBeOfType<Result<SyncConfig>.Fail>();
+            fail.Error.Code.ShouldBe("invalid");
+            fail.Error.Message.ShouldContain("debounce");
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public async Task Save_OutOfRangeDebounce_RejectsWithoutWriting()
+    {
+        var dir = TempDir.Create();
+        try
+        {
+            var store = new JsonSyncConfigStore(dir);
+            var outOfRange = Config with { Debounce = TimeSpan.FromSeconds(5) };
+
+            var outcome = await store.Save(outOfRange, CancellationToken.None);
+
+            var fail = outcome.ShouldBeOfType<Result<SyncConfig>.Fail>();
+            fail.Error.Code.ShouldBe("invalid");
+            fail.Error.Message.ShouldContain("debounce");
+            File.Exists(store.FilePath).ShouldBeFalse();
         }
         finally
         {
