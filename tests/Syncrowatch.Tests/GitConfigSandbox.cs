@@ -41,6 +41,14 @@ public sealed class GitConfigSandbox : IDisposable
         File.Exists(_sandboxPath).ShouldBeFalse();
     }
 
+    public void AssertGlobalConfigIsolated()
+    {
+        var after = File.Exists(_globalPath) ? File.ReadAllText(_globalPath) : null;
+        after.ShouldBe(_before);
+    }
+
+    public void WriteGlobalConfig(string content) => File.WriteAllText(_sandboxPath, content);
+
     public void Dispose()
     {
         try

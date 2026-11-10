@@ -3,7 +3,9 @@ using Shouldly;
 using Synchro.Core;
 using Syncrowatch.App;
 using Syncrowatch.Core;
+using Syncrowatch.Core.Bootstrap;
 using Syncrowatch.Core.Config;
+using Syncrowatch.Core.Transport;
 using Xunit;
 
 namespace Syncrowatch.Tests;
@@ -45,6 +47,15 @@ public class CompositionRootTests
 
         provider.GetService<Func<SyncConfig, IRemoteRepository>>().ShouldNotBeNull();
         provider.GetService<IRemoteRepository>().ShouldBeNull();
+    }
+
+    [Fact]
+    public void Build_RegistersLocalGitAndBootstrapFactory()
+    {
+        var provider = CompositionRoot.Build();
+
+        provider.GetService<ILocalGit>().ShouldNotBeNull();
+        provider.GetService<Func<SyncConfig, IBootstrapper>>().ShouldNotBeNull();
     }
 
     [Fact]

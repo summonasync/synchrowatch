@@ -19,9 +19,9 @@ public sealed class GitHubRepository : IRemoteRepository
     }
 
     public Task<Result<RemoteValidation>> ValidateRepository(CancellationToken cancellationToken) =>
-        GuardedAsync<RemoteValidation>(async () =>
+        TransportResult.Capture<RemoteValidation>(async () =>
         {
-            GuardRemoteUrl();
+            GitArgumentGuards.UsableRemoteUrl(_config.RemoteUrl);
             var probe = await RunProbeAsync(cancellationToken).ConfigureAwait(false);
             if (probe.Succeeded)
             {
@@ -44,9 +44,9 @@ public sealed class GitHubRepository : IRemoteRepository
         });
 
     public Task<Result<IReadOnlyList<RemoteRef>>> Fetch(CancellationToken cancellationToken) =>
-        GuardedAsync<IReadOnlyList<RemoteRef>>(async () =>
+        TransportResult.Capture<IReadOnlyList<RemoteRef>>(async () =>
         {
-            GuardRemoteUrl();
+            GitArgumentGuards.UsableRemoteUrl(_config.RemoteUrl);
             var fetched = await RunRemoteAsync([.. CredentialIsolation, .. IdentityArguments(), "fetch", "--prune", "origin"],
                 _config.WatchedFolder, cancellationToken).ConfigureAwait(false);
             GitFailure.EnsureSuccess(fetched, "fetch");
@@ -59,10 +59,10 @@ public sealed class GitHubRepository : IRemoteRepository
         });
 
     public Task<Result<SyncOutcome>> Pull(string branch, CancellationToken cancellationToken) =>
-        GuardedAsync<SyncOutcome>(async () =>
+        TransportResult.Capture<SyncOutcome>(async () =>
         {
-            GuardRemoteUrl();
-            var name = GuardBranch(branch);
+            GitArgumentGuards.UsableRemoteUrl(_config.RemoteUrl);
+            var name = GitArgumentGuards.RefName(branch);
             var before = await ReadHeadAsync(cancellationToken).ConfigureAwait(false);
             var fetched = await RunRemoteAsync([.. CredentialIsolation, .. IdentityArguments(), "fetch", "origin", name],
                 _config.WatchedFolder, cancellationToken).ConfigureAwait(false);
@@ -76,10 +76,10 @@ public sealed class GitHubRepository : IRemoteRepository
         });
 
     public Task<Result<SyncOutcome>> Push(string branch, CancellationToken cancellationToken) =>
-        GuardedAsync<SyncOutcome>(async () =>
+        TransportResult.Capture<SyncOutcome>(async () =>
         {
-            GuardRemoteUrl();
-            var name = GuardBranch(branch);
+            GitArgumentGuards.UsableRemoteUrl(_config.RemoteUrl);
+            var name = GitArgumentGuards.RefName(branch);
             var remoteBefore = await RemoteTipAsync(name, cancellationToken).ConfigureAwait(false);
             var pushed = await RunRemoteAsync(
                 [.. CredentialIsolation, .. IdentityArguments(), "push", "origin", name],
@@ -91,11 +91,11 @@ public sealed class GitHubRepository : IRemoteRepository
         });
 
     public Task<Result<SyncOutcome>> PushForceWithLease(string branch, string expectedRemoteSha, CancellationToken cancellationToken) =>
-        GuardedAsync<SyncOutcome>(async () =>
+        TransportResult.Capture<SyncOutcome>(async () =>
         {
-            GuardRemoteUrl();
-            var name = GuardBranch(branch);
-            GuardSha(expectedRemoteSha);
+            GitArgumentGuards.UsableRemoteUrl(_config.RemoteUrl);
+            var name = GitArgumentGuards.RefName(branch);
+            GitArgumentGuards.Sha(expectedRemoteSha);
             var pushed = await RunRemoteAsync(
                 [.. CredentialIsolation,
                  "push",
@@ -110,9 +110,9 @@ public sealed class GitHubRepository : IRemoteRepository
         });
 
     public Task<Result<IReadOnlyList<RemoteRef>>> ListBranch(CancellationToken cancellationToken) =>
-        GuardedAsync<IReadOnlyList<RemoteRef>>(async () =>
+        TransportResult.Capture<IReadOnlyList<RemoteRef>>(async () =>
         {
-            GuardRemoteUrl();
+            GitArgumentGuards.UsableRemoteUrl(_config.RemoteUrl);
             var listing = await RunRemoteAsync(
                 [.. CredentialIsolation, "ls-remote", "--heads", _config.RemoteUrl], null, cancellationToken)
                 .ConfigureAwait(false);
@@ -120,18 +120,6 @@ public sealed class GitHubRepository : IRemoteRepository
 
             return new Result<IReadOnlyList<RemoteRef>>.Ok(RemoteRefParser.ParseHeads(listing.StandardOutput));
         });
-
-    private static async Task<Result<T>> GuardedAsync<T>(Func<Task<Result<T>>> operation)
-    {
-        try
-        {
-            return await operation().ConfigureAwait(false);
-        }
-        catch (GitTransportException ex)
-        {
-            return new Result<T>.Fail(ex.Error);
-        }
-    }
 
     private Task<GitCommandResult> RunProbeAsync(CancellationToken cancellationToken)
     {
@@ -208,32 +196,6 @@ public sealed class GitHubRepository : IRemoteRepository
 
     private IReadOnlyList<string> IdentityArguments() =>
         ["-c", $"user.name={_config.Identity.Name}", "-c", $"user.email={_config.Identity.Email}"];
-
-    private void GuardRemoteUrl()
-    {
-        if (string.IsNullOrWhiteSpace(_config.RemoteUrl) || _config.RemoteUrl.StartsWith('-'))
-        {
-            throw new GitOperationException(SyncError.Invalid("remote url is not a usable git target"));
-        }
-    }
-
-    private static string GuardBranch(string branch)
-    {
-        if (string.IsNullOrWhiteSpace(branch) || branch.StartsWith('-') || branch.Contains(':'))
-        {
-            throw new GitOperationException(SyncError.Invalid($"branch '{branch}' is not a usable ref name"));
-        }
-
-        return branch;
-    }
-
-    private static void GuardSha(string sha)
-    {
-        if (sha.Length == 0 || sha.Contains(' ') || !sha.All(char.IsAsciiHexDigit))
-        {
-            throw new GitOperationException(SyncError.Invalid("expected remote sha is not a hexadecimal object id"));
-        }
-    }
 
     private static bool UsesPassword(string url) =>
         url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)

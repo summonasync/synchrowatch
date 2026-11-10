@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Syncrowatch.Core;
+using Syncrowatch.Core.Bootstrap;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.Transport;
 
@@ -16,6 +17,12 @@ public static class CompositionRoot
         services.AddSingleton<ICredentialStore>(credentials);
         services.AddSingleton<Func<SyncConfig, IRemoteRepository>>(config =>
             new GitHubRepository(config, credentials, new GitProcess()));
+        services.AddSingleton<ILocalGit>(new GitLocal(new GitProcess()));
+        services.AddSingleton<Func<SyncConfig, IBootstrapper>>(config =>
+            new Bootstrapper(
+                config,
+                new GitHubRepository(config, credentials, new GitProcess()),
+                new GitLocal(new GitProcess())));
         return services.BuildServiceProvider();
     }
 }
