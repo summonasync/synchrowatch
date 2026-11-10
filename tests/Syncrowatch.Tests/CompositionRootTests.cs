@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
+using Synchro.Core;
 using Syncrowatch.App;
 using Syncrowatch.Core;
 using Syncrowatch.Core.Config;
@@ -36,4 +37,33 @@ public class CompositionRootTests
         provider.GetService<ISyncEngine>().ShouldBeNull();
         provider.GetService<IRemoteRepository>().ShouldBeNull();
     }
+
+    [Fact]
+    public void Build_RegistersRepositoryFactoryInsteadOfSingleton()
+    {
+        var provider = CompositionRoot.Build();
+
+        provider.GetService<Func<SyncConfig, IRemoteRepository>>().ShouldNotBeNull();
+        provider.GetService<IRemoteRepository>().ShouldBeNull();
+    }
+
+    [Fact]
+    public void Build_RepositoryFactory_BuildsInstancePerConfig()
+    {
+        var provider = CompositionRoot.Build();
+        var factory = provider.GetService<Func<SyncConfig, IRemoteRepository>>()!;
+
+        var first = factory(SampleConfig("https://github.com/acme/first.git"));
+        var second = factory(SampleConfig("https://github.com/acme/second.git"));
+
+        first.ShouldNotBeSameAs(second);
+    }
+
+    private static SyncConfig SampleConfig(string remoteUrl) => new()
+    {
+        WatchedFolder = Path.GetTempPath(),
+        RemoteUrl = remoteUrl,
+        Branch = "main",
+        Mode = SyncMode.Git
+    };
 }
