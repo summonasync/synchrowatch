@@ -156,4 +156,26 @@ public class SyncIgnoreRulesTests
         rules.IsIgnored(".git").ShouldBeTrue();
         rules.IsIgnored("submodule/.git").ShouldBeTrue();
     }
+
+    [Fact]
+    public void ForFolder_WithoutSyncIgnoreFile_IgnoresConflictKeepBothCopies()
+    {
+        var rules = SyncIgnoreRules.ForFolder(TempDir.Create());
+
+        rules.IsIgnored("report (theirs 2026-11-11 103000).txt").ShouldBeTrue();
+        rules.IsIgnored("docs/notes (theirs 2026-11-11 103000) 2.md").ShouldBeTrue();
+        rules.IsIgnored("Makefile (theirs 2026-03-04 050607)").ShouldBeTrue();
+        rules.IsIgnored("draft (mine).txt").ShouldBeTrue();
+        rules.IsIgnored("deep/src/app/main (mine).cs").ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ForFolder_WithoutSyncIgnoreFile_KeepsSimilarLegitimateNames()
+    {
+        var rules = SyncIgnoreRules.ForFolder(TempDir.Create());
+
+        rules.IsIgnored("theirs.txt").ShouldBeFalse();
+        rules.IsIgnored("my notes.txt").ShouldBeFalse();
+        rules.IsIgnored("report final.md").ShouldBeFalse();
+    }
 }

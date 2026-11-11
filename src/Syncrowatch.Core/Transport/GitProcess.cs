@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Text;
 
 namespace Syncrowatch.Core.Transport;
 
@@ -17,7 +18,7 @@ public sealed class GitProcess : IGitRunner
         timeoutSource.CancelAfter(invocation.Timeout);
 
         using var process = Start(invocation);
-        var stdout = process.StandardOutput.ReadToEndAsync(timeoutSource.Token);
+        var stdout = ReadAllAsync(process.StandardOutput.BaseStream, timeoutSource.Token);
         var stderr = process.StandardError.ReadToEndAsync(timeoutSource.Token);
 
         try
@@ -38,8 +39,18 @@ public sealed class GitProcess : IGitRunner
         }
 
         return Redact(
-            new GitCommandResult(process.ExitCode, await stdout.ConfigureAwait(false), await stderr.ConfigureAwait(false)),
+            new GitCommandResult(process.ExitCode, Encoding.UTF8.GetString(await stdout.ConfigureAwait(false)), await stderr.ConfigureAwait(false))
+            {
+                OutputBytes = await stdout.ConfigureAwait(false)
+            },
             invocation.Environment);
+    }
+
+    private static async Task<byte[]> ReadAllAsync(Stream stream, CancellationToken cancellationToken)
+    {
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
+        return buffer.ToArray();
     }
 
     private Process Start(GitInvocation invocation)
@@ -76,7 +87,7 @@ public sealed class GitProcess : IGitRunner
         }
     }
 
-    private static async Task Drain(Task<string> pending)
+    private static async Task Drain(Task pending)
     {
         try
         {

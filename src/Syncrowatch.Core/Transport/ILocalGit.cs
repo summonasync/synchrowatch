@@ -25,4 +25,18 @@ public interface ILocalGit
     Task<Result<LocalHead>> HeadInfo(string folder, CancellationToken cancellationToken);
 
     Task<Result<bool>> IsWorkingTreeEmpty(string folder, CancellationToken cancellationToken);
+
+    Task<Result<BlobContent>> ReadBlob(string folder, string revision, string relativePath, CancellationToken cancellationToken);
+
+    Task<Result<BlobContent>> ReadBlobBySha(string folder, string objectSha, CancellationToken cancellationToken);
+
+    Task<Result<bool>> HasMergeInProgress(string folder, CancellationToken cancellationToken);
+
+    Task<Result<MergeOutcome>> MergeNoCommit(string folder, string revision, CancellationToken cancellationToken);
+
+    Task<Result<IReadOnlyList<ConflictIndexEntry>>> ReadConflictedIndex(string folder, CancellationToken cancellationToken);
+
+    Task<Result<string>> CommitMerge(string folder, CommitIdentity identity, string message, CancellationToken cancellationToken);
+
+    Task<Result<StageOutcome>> RemovePaths(string folder, IReadOnlyList<string> relativePaths, CancellationToken cancellationToken);
 }

@@ -24,7 +24,9 @@ public sealed class SyncIgnoreRules
         "*.tmp",
         "~$*",
         "*.part",
-        "*.crdownload"
+        "*.crdownload",
+        "*(theirs *)*",
+        "*(mine)*"
     ];
 
     private readonly List<IgnorePattern> _patterns;
