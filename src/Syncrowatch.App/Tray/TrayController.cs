@@ -4,11 +4,13 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Synchro.Core;
+using Syncrowatch.App.Notifications;
 using Syncrowatch.App.Wizard;
 using Syncrowatch.Core;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.Engine;
 using Syncrowatch.Core.History;
+using Syncrowatch.Core.Relay;
 
 namespace Syncrowatch.App.Tray;
 
@@ -24,6 +26,7 @@ public sealed class TrayController : IDisposable
     private readonly NativeMenuItem _manualItem;
     private readonly NativeMenuItem _semiAutoItem;
     private ModeController? _controller;
+    private RelayPollDriver _relayDriver;
     private int _disposed;
 
     public TrayController(IServiceProvider services, TrayIcon icon, IClassicDesktopStyleApplicationLifetime desktop)
@@ -31,8 +34,12 @@ public sealed class TrayController : IDisposable
         _services = services;
         _icon = icon;
         _desktop = desktop;
-        _tracker = new TrayStateTracker(services.GetRequiredService<ISyncEventBus>());
+        _tracker = services.GetRequiredService<TrayStateTracker>();
         _tracker.PropertyChanged += OnTrayStateChanged;
+        _services.GetRequiredService<ToastService>();
+        _services.GetRequiredService<TrayStateWatcher>();
+        _relayDriver = _services.GetRequiredService<RelayPollDriver>();
+        _relayDriver.Start();
         _syncCommand = new AsyncCommand(RunSyncNowAsync, ReadyForSync, HandleCommandFailure);
         _pauseItem = MenuActionItem("Pause", TogglePause);
         _autoItem = ModeItem("Auto", SyncRunMode.Auto);
@@ -79,6 +86,7 @@ public sealed class TrayController : IDisposable
             _controller.Dispose();
         }
 
+        _relayDriver.Dispose();
         _tracker.PropertyChanged -= OnTrayStateChanged;
         _tracker.Dispose();
     }

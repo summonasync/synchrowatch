@@ -17,11 +17,18 @@ public sealed class SyncLoopModesTests : IDisposable
     private readonly JsonSyncEventStore _store;
     private readonly SyncEventBus _bus = new();
     private readonly List<SyncNotification> _notifications = [];
+    private readonly object _notificationGate = new();
 
     public SyncLoopModesTests()
     {
         _store = new JsonSyncEventStore(_historyDirectory);
-        _bus.Received += _notifications.Add;
+        _bus.Received += notification =>
+        {
+            lock (_notificationGate)
+            {
+                _notifications.Add(notification);
+            }
+        };
     }
 
     [Fact]
@@ -150,7 +157,7 @@ public sealed class SyncLoopModesTests : IDisposable
         await local.DidNotReceive().CommitPaths(
             Arg.Any<string>(), Arg.Any<CommitIdentity>(), Arg.Any<string>(),
             Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
-        _notifications.OfType<SyncNotification.SyncFailed>().ShouldBeEmpty();
+        SnapshotNotifications().OfType<SyncNotification.SyncFailed>().ShouldBeEmpty();
 
         (await loop.ConfirmPendingPush(CancellationToken.None)).ShouldBeOfType<Result<SyncOutcome>.Ok>();
         (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
@@ -185,7 +192,7 @@ public sealed class SyncLoopModesTests : IDisposable
 
         await remote.Received(2).Pull(Arg.Any<string>(), Arg.Any<CancellationToken>());
         await remote.DidNotReceive().MergeFetchedHead(Arg.Any<CancellationToken>());
-        _notifications.OfType<SyncNotification.SyncFailed>().ShouldBeEmpty();
+        SnapshotNotifications().OfType<SyncNotification.SyncFailed>().ShouldBeEmpty();
         (await loop.ConfirmPendingPush(CancellationToken.None)).ShouldBeOfType<Result<SyncOutcome>.Ok>();
     }
 
@@ -211,7 +218,7 @@ public sealed class SyncLoopModesTests : IDisposable
 
         outcome.ShouldBeOfType<Result<SyncCycleReport>.Fail>().Error.Code.ShouldBe("local_changes");
         await remote.DidNotReceive().MergeFetchedHead(Arg.Any<CancellationToken>());
-        _notifications.OfType<SyncNotification.SyncFailed>().ShouldHaveSingleItem();
+        SnapshotNotifications().OfType<SyncNotification.SyncFailed>().ShouldHaveSingleItem();
         (await RecordedEvents()).Select(@event => @event.Kind).ShouldContain(SyncEventKind.SyncFailed);
         await local.DidNotReceive().CommitPaths(
             Arg.Any<string>(), Arg.Any<CommitIdentity>(), Arg.Any<string>(),
@@ -233,9 +240,9 @@ public sealed class SyncLoopModesTests : IDisposable
         using var loop = BuildLoop(CleanLocal(), mode: SyncRunMode.SemiAuto, confirmation: confirmation);
 
         (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
-        await AwaitAsync(() => _notifications.OfType<SyncNotification.SyncFailed>().Any());
+        await AwaitAsync(() => SnapshotNotifications().OfType<SyncNotification.SyncFailed>().Any());
 
-        _notifications.OfType<SyncNotification.SyncFailed>().Single().Error.Code.ShouldBe("push_confirm_failed");
+        SnapshotNotifications().OfType<SyncNotification.SyncFailed>().Single().Error.Code.ShouldBe("push_confirm_failed");
         (await RecordedEvents()).Select(@event => @event.Kind).ShouldContain(SyncEventKind.SyncFailed);
     }
 
@@ -273,7 +280,7 @@ public sealed class SyncLoopModesTests : IDisposable
         var ok = outcome.ShouldBeOfType<Result<SyncCycleReport>.Ok>();
         ok.Value.Pushed.ShouldBeNull();
         await remote.DidNotReceive().Push(Arg.Any<string>(), Arg.Any<CancellationToken>());
-        _notifications.ShouldHaveSingleItem().ShouldBeOfType<SyncNotification.PushPending>()
+        SnapshotNotifications().ShouldHaveSingleItem().ShouldBeOfType<SyncNotification.PushPending>()
             .Push.Sha.ShouldBe("shaHead");
     }
 
@@ -288,7 +295,7 @@ public sealed class SyncLoopModesTests : IDisposable
         var outcome = await loop.SyncOnce(CancellationToken.None);
 
         outcome.ShouldBeOfType<Result<SyncCycleReport>.Ok>().Value.Pushed.ShouldBeNull();
-        _notifications.ShouldBeEmpty();
+        SnapshotNotifications().ShouldBeEmpty();
         await remote.DidNotReceive().Push(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -306,8 +313,8 @@ public sealed class SyncLoopModesTests : IDisposable
         var confirmed = await loop.ConfirmPendingPush(CancellationToken.None);
 
         confirmed.ShouldBeOfType<Result<SyncOutcome>.Ok>().Value.ToSha.ShouldBe("shaHead");
-        _notifications.OfType<SyncNotification.PushPending>().ShouldHaveSingleItem();
-        _notifications.OfType<SyncNotification.SyncCompleted>().ShouldHaveSingleItem();
+        SnapshotNotifications().OfType<SyncNotification.PushPending>().ShouldHaveSingleItem();
+        SnapshotNotifications().OfType<SyncNotification.SyncCompleted>().ShouldHaveSingleItem();
 
         var repeat = await loop.ConfirmPendingPush(CancellationToken.None);
 
@@ -384,10 +391,10 @@ public sealed class SyncLoopModesTests : IDisposable
         using var loop = BuildLoop(CleanLocal(), remote: remote, mode: SyncRunMode.SemiAuto, confirmation: confirmation);
 
         (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
-        await AwaitAsync(() => PushCount(remote) >= 1);
+        await AwaitAsync(() => SnapshotNotifications().OfType<SyncNotification.SyncCompleted>().Any());
 
         await remote.Received(1).Push(Arg.Any<string>(), Arg.Any<CancellationToken>());
-        _notifications.OfType<SyncNotification.SyncCompleted>().ShouldHaveSingleItem();
+        SnapshotNotifications().OfType<SyncNotification.SyncCompleted>().ShouldHaveSingleItem();
     }
 
     [Fact]
@@ -454,6 +461,14 @@ public sealed class SyncLoopModesTests : IDisposable
     {
         var outcome = await _store.Query(new HistoryQuery { Limit = 100 }, CancellationToken.None);
         return outcome.ShouldBeOfType<Result<IReadOnlyList<SyncEvent>>.Ok>().Value;
+    }
+
+    private IReadOnlyList<SyncNotification> SnapshotNotifications()
+    {
+        lock (_notificationGate)
+        {
+            return [.. _notifications];
+        }
     }
 
     private static async Task AwaitAsync(Func<bool> ready)

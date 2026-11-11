@@ -522,7 +522,7 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
         if (released is Result<SyncOutcome>.Fail failure)
         {
             await AnnounceFailure(
-                new SyncEventDraft(SyncEventKind.SyncFailed, staged.Branch, RedactRemote(failure.Error.Message), []),
+                new SyncEventDraft(SyncEventKind.SyncFailed, staged.Branch, RemoteUrlRedactor.Scrub(failure.Error.Message), []),
                 new SyncNotification.SyncFailed(_time.GetUtcNow(), failure.Error),
                 CancellationToken.None).ConfigureAwait(false);
         }

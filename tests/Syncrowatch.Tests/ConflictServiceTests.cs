@@ -3,6 +3,7 @@ using Synchro.Core;
 using Syncrowatch.Core;
 using Syncrowatch.Core.Engine.Conflicts;
 using Syncrowatch.Core.History;
+using ConflictsPending = Syncrowatch.Core.Engine.Conflicts.PendingConflict;
 using Xunit;
 
 namespace Syncrowatch.Tests;
@@ -24,7 +25,7 @@ public sealed class ConflictServiceTests : IDisposable
             async () =>
             {
                 var outcome = await service.Pending(CancellationToken.None);
-                return outcome is Result<IReadOnlyList<PendingConflict>>.Ok found && found.Value.Count > 0
+                return outcome is Result<IReadOnlyList<ConflictsPending>>.Ok found && found.Value.Count > 0
                     ? found.Value
                     : null;
             },
@@ -91,7 +92,7 @@ public sealed class ConflictServiceTests : IDisposable
 
         var outcome = await service.Pending(CancellationToken.None);
 
-        outcome.ShouldBeOfType<Result<IReadOnlyList<PendingConflict>>.Ok>().Value.ShouldBeEmpty();
+        outcome.ShouldBeOfType<Result<IReadOnlyList<ConflictsPending>>.Ok>().Value.ShouldBeEmpty();
     }
 
     public void Dispose() => _sandbox.Dispose();
@@ -112,12 +113,12 @@ public sealed class ConflictServiceTests : IDisposable
         throw new TimeoutException("condition was not met in time");
     }
 
-    private Task<IReadOnlyList<PendingConflict>> WaitForPendingAsync(ConflictService service) =>
-        WaitForAsync<IReadOnlyList<PendingConflict>>(
+    private Task<IReadOnlyList<ConflictsPending>> WaitForPendingAsync(ConflictService service) =>
+        WaitForAsync<IReadOnlyList<ConflictsPending>>(
             async () =>
             {
                 var outcome = await service.Pending(CancellationToken.None);
-                return outcome is Result<IReadOnlyList<PendingConflict>>.Ok found && found.Value.Count > 0
+                return outcome is Result<IReadOnlyList<ConflictsPending>>.Ok found && found.Value.Count > 0
                     ? found.Value
                     : null;
             },

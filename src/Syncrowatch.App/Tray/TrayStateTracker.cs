@@ -188,7 +188,7 @@ public sealed class TrayStateTracker : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private void SetState(TrayState state)
+    public void SetState(TrayState state)
     {
         bool changed;
         lock (_gate)

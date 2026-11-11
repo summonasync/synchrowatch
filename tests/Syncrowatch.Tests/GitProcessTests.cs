@@ -109,14 +109,15 @@ echo "stub-diagnostic" >&2
         try
         {
             var runner = new GitProcess(stubPath);
-            var result = await runner.RunAsync(new GitInvocation
+            var invocation = new GitInvocation
             {
                 Arguments = ["--version"],
                 Environment = new Dictionary<string, string>
                 {
                     [CredentialInjector.PasswordVariable] = "ghp_redact_probe_123"
                 }
-            }, CancellationToken.None);
+            };
+            var result = await RunUntilExecutableAsync(runner, invocation);
 
             result.StandardOutput.ShouldNotContain("ghp_redact_probe_123");
             result.StandardOutput.ShouldContain("***");
@@ -125,6 +126,21 @@ echo "stub-diagnostic" >&2
         finally
         {
             File.Delete(stubPath);
+        }
+    }
+
+    private static async Task<GitCommandResult> RunUntilExecutableAsync(GitProcess runner, GitInvocation invocation)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await runner.RunAsync(invocation, CancellationToken.None);
+            }
+            catch (GitMissingException missing) when (attempt < 5 && missing.InnerException?.Message.Contains("Text file busy") == true)
+            {
+                await Task.Delay(50 * attempt);
+            }
         }
     }
 

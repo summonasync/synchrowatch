@@ -7,6 +7,7 @@ using Syncrowatch.Core;
 using Syncrowatch.Core.Bootstrap;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.Engine;
+using Syncrowatch.Core.Engine.Conflicts;
 using Syncrowatch.Core.History;
 using Syncrowatch.Core.Relay;
 using Syncrowatch.Core.Transport;
@@ -33,7 +34,9 @@ public static class CompositionRoot
         services.AddSingleton<ISyncEventStore>(new JsonSyncEventStore(dataDirectory));
         services.AddSingleton<SyncEventBus>();
         services.AddSingleton<ISyncEventBus>(sp => sp.GetRequiredService<SyncEventBus>());
-        services.AddSingleton<IPendingConflictReader>(new EmptyPendingConflictReader());
+        services.AddSingleton<IConflictStore>(new JsonConflictStore(dataDirectory));
+        services.AddSingleton<IPendingConflictReader>(sp => new ConflictPendingReader(
+            sp.GetRequiredService<IConflictStore>()));
         services.AddSingleton<IRelaySeenState>(new RelaySeenStateStore(dataDirectory));
         services.AddSingleton<Func<SyncConfig, IRelayWatcher>>(sp => config => new RelayWatcher(
             config,
@@ -41,13 +44,16 @@ public static class CompositionRoot
             new GitProcess(),
             sp.GetRequiredService<IRelaySeenState>(),
             sp.GetRequiredService<ISyncEventBus>()));
-        services.AddSingleton<ITrayStateUpdater>(new MarshalledTrayStateUpdater(new SilentTrayStateUpdater()));
+        services.AddSingleton<RelayPollDriver>();
+        services.AddSingleton<TrayStateTracker>();
+        services.AddSingleton<ITrayStateUpdater>(sp => new MarshalledTrayStateUpdater(
+            new TrayStateTrackerUpdater(sp.GetRequiredService<TrayStateTracker>())));
         services.AddSingleton<IToastWindowFactory>(new ToastWindowFactory());
         services.AddSingleton(sp => new ToastService(
             sp.GetRequiredService<ISyncEventBus>(), sp.GetRequiredService<IToastWindowFactory>()));
         services.AddSingleton(sp => new TrayStateWatcher(
             sp.GetRequiredService<ISyncEventBus>(), sp.GetRequiredService<ITrayStateUpdater>()));
-        services.AddSingleton<IHistoryView, HistoryPlaceholder>();
+        services.AddSingleton<IHistoryView>(sp => new HistoryWindowView(sp));
         services.AddSingleton<IPushConfirmation>(new PushConfirmationPrompt());
         services.AddSingleton<Func<SyncConfig, IFileWatching>>(config => new FolderWatcher(config.WatchedFolder));
         services.AddSingleton<Func<SyncConfig, ISyncEngine>>(sp => config => new SyncLoop(

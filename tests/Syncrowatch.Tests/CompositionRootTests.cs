@@ -8,6 +8,7 @@ using Syncrowatch.Core;
 using Syncrowatch.Core.Bootstrap;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.Engine;
+using Syncrowatch.Core.Engine.Conflicts;
 using Syncrowatch.Core.History;
 using Syncrowatch.Core.Relay;
 using Syncrowatch.Core.Transport;
@@ -102,6 +103,20 @@ public class CompositionRootTests
         provider.GetService<TrayStateWatcher>().ShouldNotBeNull();
         provider.GetService<Func<SyncConfig, IRelayWatcher>>().ShouldNotBeNull();
         provider.GetService<IRelayWatcher>().ShouldBeNull();
+    }
+
+    [Fact]
+    public void Build_WiresTrayHistoryAndConflictIntegrations()
+    {
+        var provider = CompositionRoot.Build();
+
+        provider.GetService<TrayStateTracker>().ShouldNotBeNull();
+        provider.GetService<RelayPollDriver>().ShouldNotBeNull();
+        provider.GetService<IConflictStore>().ShouldNotBeNull();
+        provider.GetService<IHistoryView>().ShouldBeOfType<HistoryWindowView>();
+
+        var updater = provider.GetService<ITrayStateUpdater>();
+        updater.ShouldBeOfType<MarshalledTrayStateUpdater>();
     }
 
     private static SyncConfig SampleConfig(string remoteUrl) => new()
