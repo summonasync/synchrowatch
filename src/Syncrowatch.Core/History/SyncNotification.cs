@@ -14,4 +14,10 @@ public abstract record SyncNotification
     public sealed record SyncFailed(DateTimeOffset OccurredUtc, SyncError Error) : SyncNotification;
 
     public sealed record PushPending(PendingPush Push) : SyncNotification;
+
+    public sealed record RelayPackageDetected(
+        DateTimeOffset OccurredUtc,
+        string Project,
+        string PackageFile,
+        string CliCommand) : SyncNotification;
 }

@@ -2,12 +2,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Synchro.Core;
 using Syncrowatch.App;
+using Syncrowatch.App.Notifications;
 using Syncrowatch.App.Tray;
 using Syncrowatch.Core;
 using Syncrowatch.Core.Bootstrap;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.Engine;
 using Syncrowatch.Core.History;
+using Syncrowatch.Core.Relay;
 using Syncrowatch.Core.Transport;
 using Xunit;
 
@@ -84,6 +86,22 @@ public class CompositionRootTests
         var second = factory(SampleConfig("https://github.com/acme/second.git"));
 
         first.ShouldNotBeSameAs(second);
+    }
+
+    [Fact]
+    public void Build_RegistersHistoryNotificationAndRelaySeams()
+    {
+        var provider = CompositionRoot.Build();
+
+        provider.GetService<ISyncEventBus>().ShouldNotBeNull();
+        provider.GetService<ISyncEventStore>().ShouldNotBeNull();
+        provider.GetService<IPendingConflictReader>().ShouldNotBeNull();
+        provider.GetService<IRelaySeenState>().ShouldNotBeNull();
+        provider.GetService<ITrayStateUpdater>().ShouldNotBeNull();
+        provider.GetService<ToastService>().ShouldNotBeNull();
+        provider.GetService<TrayStateWatcher>().ShouldNotBeNull();
+        provider.GetService<Func<SyncConfig, IRelayWatcher>>().ShouldNotBeNull();
+        provider.GetService<IRelayWatcher>().ShouldBeNull();
     }
 
     private static SyncConfig SampleConfig(string remoteUrl) => new()
