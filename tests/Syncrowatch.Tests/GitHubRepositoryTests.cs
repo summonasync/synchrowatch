@@ -203,6 +203,108 @@ public class GitHubRepositoryTests
     }
 
     [Fact]
+    public async Task MergeFetchedHead_AfterDivergedPull_AutoMergesCleanTextAndListsFiles()
+    {
+        using var environment = new GitConfigSandbox();
+        using var standIn = new BareStandIn();
+        File.WriteAllText(Path.Combine(standIn.PeerPath, "notes.txt"), "alpha\nmiddle\nomega\n");
+        GitCli.CommitAll(standIn.PeerPath, "normalize base");
+        GitCli.Push(standIn.PeerPath, "origin", "main");
+        (await standIn.Repository.Pull("main", CancellationToken.None))
+            .ShouldBeOfType<Result<SyncOutcome>.Ok>();
+        File.WriteAllText(Path.Combine(standIn.WorkPath, "notes.txt"), "ALPHA changed by work\nmiddle\nomega\n");
+        GitCli.CommitAll(standIn.WorkPath, "work rewrites first line");
+        var workHead = GitCli.Head(standIn.WorkPath);
+        File.WriteAllText(Path.Combine(standIn.PeerPath, "notes.txt"), "alpha\nmiddle\nOMEGA appended by peer\n");
+        GitCli.CommitAll(standIn.PeerPath, "peer appends last line");
+        GitCli.Push(standIn.PeerPath, "origin", "main");
+        (await standIn.Repository.Pull("main", CancellationToken.None))
+            .ShouldBeOfType<Result<SyncOutcome>.Fail>().Error.Code.ShouldBe("conflict");
+
+        var outcome = await standIn.Repository.MergeFetchedHead(CancellationToken.None);
+
+        var ok = outcome.ShouldBeOfType<Result<MergeOutcome>.Ok>();
+        var merged = ok.Value.ShouldBeOfType<MergeOutcome.Merged>();
+        merged.FromSha.ShouldBe(workHead);
+        merged.ToSha.ShouldBe(GitCli.Head(standIn.WorkPath));
+        merged.Files.ShouldBe(["notes.txt"]);
+        File.ReadAllText(Path.Combine(standIn.WorkPath, "notes.txt"))
+            .ShouldBe("ALPHA changed by work\nmiddle\nOMEGA appended by peer\n");
+        int.Parse(GitCli.Run(standIn.WorkPath, "rev-list", "--count", "--merges", "HEAD").Output.Trim())
+            .ShouldBe(1);
+        environment.AssertRealGlobalConfigUnchanged();
+    }
+
+    [Fact]
+    public async Task MergeFetchedHead_ConflictingLines_AbortsAndReturnsConflictedPaths()
+    {
+        using var environment = new GitConfigSandbox();
+        using var standIn = new BareStandIn();
+        File.WriteAllText(Path.Combine(standIn.PeerPath, "notes.txt"), "peer rewrote the seed\n");
+        GitCli.CommitAll(standIn.PeerPath, "peer rewrites");
+        GitCli.Push(standIn.PeerPath, "origin", "main");
+        File.WriteAllText(Path.Combine(standIn.WorkPath, "notes.txt"), "work rewrote the seed\n");
+        GitCli.CommitAll(standIn.WorkPath, "work rewrites");
+        var workHead = GitCli.Head(standIn.WorkPath);
+        (await standIn.Repository.Pull("main", CancellationToken.None))
+            .ShouldBeOfType<Result<SyncOutcome>.Fail>().Error.Code.ShouldBe("conflict");
+
+        var outcome = await standIn.Repository.MergeFetchedHead(CancellationToken.None);
+
+        var ok = outcome.ShouldBeOfType<Result<MergeOutcome>.Ok>();
+        ok.Value.ShouldBeOfType<MergeOutcome.Conflicted>().ConflictedPaths.ShouldBe(["notes.txt"]);
+        GitCli.Run(standIn.WorkPath, "status", "--porcelain").Output.Trim().ShouldBeEmpty();
+        GitCli.Head(standIn.WorkPath).ShouldBe(workHead);
+        File.ReadAllText(Path.Combine(standIn.WorkPath, "notes.txt")).ShouldBe("work rewrote the seed\n");
+        environment.AssertRealGlobalConfigUnchanged();
+    }
+
+    [Fact]
+    public async Task MergeFetchedHead_CancelledMidMerge_AbortsAndRethrows()
+    {
+        var step = -1;
+        var runner = new FakeGitRunner(_ =>
+        {
+            step++;
+            return step switch
+            {
+                0 => new GitCommandResult(0, "shaBefore\n", string.Empty),
+                1 => throw new OperationCanceledException(),
+                _ => new GitCommandResult(0, string.Empty, string.Empty)
+            };
+        });
+        var repository = BuildRepository(runner);
+
+        await Should.ThrowAsync<OperationCanceledException>(
+            () => repository.MergeFetchedHead(CancellationToken.None));
+
+        runner.Invocations.ShouldContain(invocation => invocation.Arguments.Contains("--abort"));
+    }
+
+    [Fact]
+    public async Task MergeFetchedHead_UnrelatedFailure_ClassifiesWithoutAborting()
+    {
+        var step = -1;
+        var runner = new FakeGitRunner(_ =>
+        {
+            step++;
+            return step switch
+            {
+                0 => new GitCommandResult(0, "shaBefore\n", string.Empty),
+                1 => new GitCommandResult(128, string.Empty, "fatal: refusing to merge unrelated histories"),
+                2 => new GitCommandResult(0, string.Empty, string.Empty),
+                _ => new GitCommandResult(0, string.Empty, string.Empty)
+            };
+        });
+        var repository = BuildRepository(runner);
+
+        var outcome = await repository.MergeFetchedHead(CancellationToken.None);
+
+        outcome.ShouldBeOfType<Result<MergeOutcome>.Fail>().Error.Code.ShouldBe("git_error");
+        runner.Invocations.ShouldNotContain(invocation => invocation.Arguments.Contains("--abort"));
+    }
+
+    [Fact]
     public async Task Push_ToBareStandIn_MovesRemoteTipWithoutCredentialMaterial()
     {
         using var environment = new GitConfigSandbox();

@@ -1,0 +1,14 @@
+using Synchro.Core;
+
+namespace Syncrowatch.Core.History;
+
+public abstract record SyncNotification
+{
+    public sealed record SyncCompleted(DateTimeOffset OccurredUtc, SyncCycleReport Report) : SyncNotification;
+
+    public sealed record AutoMerged(DateTimeOffset OccurredUtc, string Branch, IReadOnlyList<string> Files) : SyncNotification;
+
+    public sealed record MergeConflicted(DateTimeOffset OccurredUtc, string Branch, IReadOnlyList<string> ConflictedPaths) : SyncNotification;
+
+    public sealed record SyncFailed(DateTimeOffset OccurredUtc, SyncError Error) : SyncNotification;
+}

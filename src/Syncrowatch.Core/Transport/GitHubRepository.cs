@@ -75,6 +75,41 @@ public sealed class GitHubRepository : IRemoteRepository
             return new Result<SyncOutcome>.Ok(new SyncOutcome(name, before, after));
         });
 
+    public Task<Result<MergeOutcome>> MergeFetchedHead(CancellationToken cancellationToken) =>
+        TransportResult.Capture<MergeOutcome>(async () =>
+        {
+            var before = await ReadHeadAsync(cancellationToken).ConfigureAwait(false);
+            GitCommandResult merged;
+            try
+            {
+                merged = await RunLocalAsync(
+                    [.. IdentityArguments(), "merge", "--no-edit", "FETCH_HEAD"], cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                await TryAbortMergeAsync().ConfigureAwait(false);
+                throw;
+            }
+
+            if (!merged.Succeeded)
+            {
+                var unmerged = await UnmergedPathsAsync(cancellationToken).ConfigureAwait(false);
+                if (unmerged.Count > 0)
+                {
+                    await TryAbortMergeAsync().ConfigureAwait(false);
+                    return new Result<MergeOutcome>.Ok(new MergeOutcome.Conflicted(unmerged));
+                }
+
+                GitFailure.EnsureSuccess(merged, "merge");
+            }
+
+            var after = await ReadHeadAsync(cancellationToken).ConfigureAwait(false);
+            var files = after == before
+                ? []
+                : await ChangedPathsAsync(before, cancellationToken).ConfigureAwait(false);
+            return new Result<MergeOutcome>.Ok(new MergeOutcome.Merged(before, after, files));
+        });
+
     public Task<Result<SyncOutcome>> Push(string branch, CancellationToken cancellationToken) =>
         TransportResult.Capture<SyncOutcome>(async () =>
         {
@@ -173,6 +208,32 @@ public sealed class GitHubRepository : IRemoteRepository
             _ => throw new InvalidOperationException("credential outcome is neither ok nor fail")
         };
     }
+
+    private async Task<IReadOnlyList<string>> UnmergedPathsAsync(CancellationToken cancellationToken)
+    {
+        var unmerged = await RunLocalAsync(["diff", "--name-only", "--diff-filter=U", "-z"], cancellationToken).ConfigureAwait(false);
+        return unmerged.Succeeded ? SplitNul(unmerged.StandardOutput) : [];
+    }
+
+    private async Task<IReadOnlyList<string>> ChangedPathsAsync(string fromSha, CancellationToken cancellationToken)
+    {
+        var changed = await RunLocalAsync(["diff", "--name-only", "-z", fromSha, "HEAD"], cancellationToken).ConfigureAwait(false);
+        return changed.Succeeded ? SplitNul(changed.StandardOutput) : [];
+    }
+
+    private async Task TryAbortMergeAsync()
+    {
+        try
+        {
+            await RunLocalAsync(["merge", "--abort"], CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or GitTransportException)
+        {
+        }
+    }
+
+    private static IReadOnlyList<string> SplitNul(string output) =>
+        output.Split('\0', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     private async Task<string> ReadHeadAsync(CancellationToken cancellationToken)
     {
