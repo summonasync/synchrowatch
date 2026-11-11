@@ -37,8 +37,8 @@ public sealed class FolderWatcher : IDisposable
 
     public void Start(CancellationToken cancellationToken = default)
     {
-        _registration = cancellationToken.Register(Dispose);
         _watcher.EnableRaisingEvents = true;
+        _registration = cancellationToken.Register(Dispose);
     }
 
     public void Dispose()

@@ -9,6 +9,7 @@ public sealed class SyncIgnoreRules
 
     private static readonly string[] BuiltIn =
     [
+        ".git",
         ".git/",
         ".svn/",
         ".hg/",
@@ -84,7 +85,7 @@ public sealed class SyncIgnoreRules
     {
         public static IgnorePattern? Parse(string line)
         {
-            var pattern = line.TrimEnd();
+            var pattern = line.Trim();
             if (pattern.Length == 0 || pattern.StartsWith('#'))
             {
                 return null;

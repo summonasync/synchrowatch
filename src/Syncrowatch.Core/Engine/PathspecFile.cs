@@ -8,8 +8,8 @@ public sealed class PathspecFile : IDisposable
 
     public static PathspecFile Create(IReadOnlyList<string> relativePaths)
     {
-        var filePath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "syncrowatch-pathspec-" + Guid.NewGuid().ToString("N"));
-        File.WriteAllText(filePath, string.Join('\0', relativePaths));
+        var filePath = Path.Combine(Path.GetTempPath(), "syncrowatch-pathspec-" + Guid.NewGuid().ToString("N"));
+        File.WriteAllText(filePath, string.Join('\0', relativePaths.Select(WithLiteralMagic)));
         return new PathspecFile(filePath);
     }
 
@@ -23,4 +23,6 @@ public sealed class PathspecFile : IDisposable
         {
         }
     }
+
+    private static string WithLiteralMagic(string relativePath) => ":(literal)" + relativePath;
 }

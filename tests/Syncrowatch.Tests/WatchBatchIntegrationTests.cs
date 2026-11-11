@@ -75,6 +75,21 @@ public sealed class WatchBatchIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task BracketFilename_CommitsExactlyTheNamedFile()
+    {
+        BootstrapRepository();
+        File.WriteAllText(Path.Combine(_root, "data[1].txt"), "bracketed");
+        File.WriteAllText(Path.Combine(_root, "data1.txt"), "plain");
+        var committer = new BatchCommitter(BuildConfig(), new LocalRepoOps(new GitProcess()));
+
+        var outcome = await committer.CommitBatch(["data[1].txt"], CancellationToken.None);
+
+        outcome.ShouldBeOfType<Result<CommitOutcome>.Ok>().Value.CommitSha.ShouldNotBeNull();
+        CommitCount().ShouldBe(2);
+        HeadChangedFiles().ShouldBe(["data[1].txt"]);
+    }
+
+    [Fact]
     public async Task CancellationBeforeWindowClose_CommitsNoPartialBatch()
     {
         BootstrapRepository();

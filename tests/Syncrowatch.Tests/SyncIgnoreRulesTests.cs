@@ -138,4 +138,22 @@ public class SyncIgnoreRulesTests
         rules.IsIgnored("cache3.bin").ShouldBeTrue();
         rules.IsIgnored("cacheX.bin").ShouldBeFalse();
     }
+
+    [Fact]
+    public void SyncIgnoreFile_LeadingAndTrailingWhitespace_IsTrimmed()
+    {
+        var rules = SyncIgnoreRules.FromLines(["   *.log   "]);
+
+        rules.IsIgnored("run.log").ShouldBeTrue();
+        rules.IsIgnored("run.txt").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ForFolder_WithoutSyncIgnoreFile_IgnoresWorktreeGitPointerFile()
+    {
+        var rules = SyncIgnoreRules.ForFolder(TempDir.Create());
+
+        rules.IsIgnored(".git").ShouldBeTrue();
+        rules.IsIgnored("submodule/.git").ShouldBeTrue();
+    }
 }

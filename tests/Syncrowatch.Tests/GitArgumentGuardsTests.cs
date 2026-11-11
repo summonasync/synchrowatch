@@ -12,6 +12,7 @@ public class GitArgumentGuardsTests
     [InlineData("a:colon.txt")]
     [InlineData("dir/sub:colon")]
     [InlineData("/absolute.txt")]
+    [InlineData(@"\\srv\share\doc.txt")]
     [InlineData("../escape.txt")]
     [InlineData("folder/../../escape.txt")]
     public void RelativePath_RejectsUnusableValues(string relativePath)

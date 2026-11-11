@@ -100,6 +100,24 @@ public class FolderWatcherTests : IDisposable
     }
 
     [Fact]
+    public async Task Start_PreCancelledToken_DoesNotThrowAndStaysQuiet()
+    {
+        var file = Path.Combine(_root, "never.txt");
+        File.WriteAllText(file, "v1");
+        using var watcher = new FolderWatcher(_root);
+        var seen = new List<FolderChange>();
+        watcher.ChangeDetected += seen.Add;
+        watcher.Start(new CancellationToken(true));
+        watcher.Dispose();
+
+        await Task.Delay(150);
+        File.WriteAllText(file, "v2");
+        await Task.Delay(300);
+
+        seen.ShouldBeEmpty();
+    }
+
+    [Fact]
     public void Dispose_IsIdempotent()
     {
         var watcher = new FolderWatcher(_root);
