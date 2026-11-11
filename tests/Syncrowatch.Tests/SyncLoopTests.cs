@@ -389,8 +389,7 @@ public sealed class SyncLoopTests : IDisposable
     {
         WatchedFolder = Path.Combine(Path.GetTempPath(), "syncloop-sample"),
         RemoteUrl = "https://github.com/acme/private.git",
-        Branch = "main",
-        Mode = SyncMode.Git
+        Branch = "main"
     };
 
     private static ILocalGit CleanLocal()

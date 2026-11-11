@@ -132,8 +132,7 @@ public sealed class SyncLoopIntegrationTests
             {
                 WatchedFolder = clone,
                 RemoteUrl = BarePath,
-                Branch = "main",
-                Mode = SyncMode.Git
+                Branch = "main"
             };
             var remote = new GitHubRepository(config, Substitute.For<ICredentialStore>(), runnerImplementation);
             var local = new GitLocal(runnerImplementation);
