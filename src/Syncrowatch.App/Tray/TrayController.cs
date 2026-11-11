@@ -121,6 +121,7 @@ public sealed class TrayController : IDisposable
     {
         if (_controller is not { } controller)
         {
+            ShowHint("Syncrowatch — not configured: finish Settings first");
             return;
         }
 
@@ -132,6 +133,7 @@ public sealed class TrayController : IDisposable
     {
         if (_controller is not { } controller)
         {
+            ShowHint("Syncrowatch — not configured: finish Settings first");
             return;
         }
 
@@ -143,6 +145,7 @@ public sealed class TrayController : IDisposable
     {
         if (_controller is not { IsConfigured: true } controller)
         {
+            ShowHint("Syncrowatch — not configured: finish Settings first");
             return;
         }
 
@@ -193,6 +196,8 @@ public sealed class TrayController : IDisposable
     {
         _icon.ToolTipText = $"Syncrowatch — error ({exception.Message})";
     }
+
+    private void ShowHint(string text) => _icon.ToolTipText = text;
 
     private static NativeMenuItem MenuActionItem(string header, Action action)
     {

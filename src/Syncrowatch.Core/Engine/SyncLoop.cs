@@ -163,7 +163,21 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
             return new Result<SyncOutcome>.Fail(new SyncError("no_pending_push", "no push is waiting for confirmation"));
         }
 
-        var pushed = await _remote.Push(staged.Branch, cancellationToken).ConfigureAwait(false);
+        Result<SyncOutcome> pushed;
+        try
+        {
+            pushed = await _remote.Push(staged.Branch, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            lock (_pendingPushGate)
+            {
+                _pendingPush ??= staged;
+            }
+
+            throw;
+        }
+
         if (pushed is Result<SyncOutcome>.Fail failure)
         {
             lock (_pendingPushGate)
@@ -175,11 +189,19 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
         }
 
         var outcome = ((Result<SyncOutcome>.Ok)pushed).Value;
+        var settledAt = _time.GetUtcNow();
         await RecordAsync(
             new SyncEventDraft(SyncEventKind.CommitOut, staged.Branch, $"pushed {outcome.ToSha}", []),
             cancellationToken).ConfigureAwait(false);
         _bus.Publish(new SyncNotification.SyncCompleted(
-            _time.GetUtcNow(), new SyncCycleReport(_time.GetUtcNow(), null, outcome)));
+            settledAt, new SyncCycleReport(settledAt, null, outcome)));
+        lock (_statusGate)
+        {
+            _lastCycleUtc = settledAt;
+            _lastError = null;
+            _lastFailureEvent = null;
+        }
+
         return new Result<SyncOutcome>.Ok(outcome);
     }
 
@@ -223,7 +245,7 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
 
     private void Tick(object? state)
     {
-        if (Volatile.Read(ref _disposed) == 1)
+        if (Volatile.Read(ref _disposed) == 1 || !ShouldPoll())
         {
             return;
         }
@@ -286,12 +308,13 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
             return await FailCycleAsync(((Result<bool>.Fail)clean).Error, cancellationToken).ConfigureAwait(false);
         }
 
-        if (!probe.Value)
+        var treeClean = probe.Value;
+        if (!treeClean && !HasPendingPush())
         {
             return await FailCycleAsync(DirtyTree, cancellationToken).ConfigureAwait(false);
         }
 
-        var pulled = await PullAsync(cancellationToken).ConfigureAwait(false);
+        var pulled = await PullAsync(treeClean, cancellationToken).ConfigureAwait(false);
         if (pulled is Result<PullStage>.Fail pullFailure)
         {
             return await FailCycleAsync(pullFailure.Error, cancellationToken).ConfigureAwait(false);
@@ -401,7 +424,7 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
         };
     }
 
-    private async Task<Result<PullStage>> PullAsync(CancellationToken cancellationToken)
+    private async Task<Result<PullStage>> PullAsync(bool treeClean, CancellationToken cancellationToken)
     {
         var pulled = await _remote.Pull(_config.Branch, cancellationToken).ConfigureAwait(false);
         if (pulled is Result<SyncOutcome>.Ok fastForward)
@@ -415,6 +438,11 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
         if (error.Code != ConflictCode)
         {
             return new Result<PullStage>.Fail(error);
+        }
+
+        if (!treeClean)
+        {
+            return new Result<PullStage>.Ok(new PullStage.MergeDeferred());
         }
 
         var merged = await _remote.MergeFetchedHead(cancellationToken).ConfigureAwait(false);
@@ -459,17 +487,47 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
         return new Result<SyncCycleReport>.Ok(new SyncCycleReport(started, pulled, null));
     }
 
+    private bool HasPendingPush()
+    {
+        lock (_pendingPushGate)
+        {
+            return _pendingPush is not null;
+        }
+    }
+
     private async Task AskForConfirmationAsync(IPushConfirmation confirmation, PendingPush staged)
     {
+        CancellationToken shutdown;
+        lock (_statusGate)
+        {
+            shutdown = _cycleToken;
+        }
+
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(shutdown);
+        Result<SyncOutcome>? released = null;
         try
         {
-            if (await confirmation.RequestAsync(staged, CancellationToken.None).ConfigureAwait(false))
+            if (await confirmation.RequestAsync(staged, linked.Token).ConfigureAwait(false))
             {
-                await ConfirmPendingPush(CancellationToken.None).ConfigureAwait(false);
+                released = await ConfirmPendingPush(linked.Token).ConfigureAwait(false);
             }
         }
-        catch (Exception)
+        catch (OperationCanceledException)
         {
+            return;
+        }
+        catch (Exception ex)
+        {
+            released = new Result<SyncOutcome>.Fail(
+                new SyncError("push_confirm_failed", $"push confirmation broke: {ex.Message}"));
+        }
+
+        if (released is Result<SyncOutcome>.Fail failure)
+        {
+            await AnnounceFailure(
+                new SyncEventDraft(SyncEventKind.SyncFailed, staged.Branch, RedactRemote(failure.Error.Message), []),
+                new SyncNotification.SyncFailed(_time.GetUtcNow(), failure.Error),
+                CancellationToken.None).ConfigureAwait(false);
         }
     }
 
@@ -559,6 +617,8 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
         public sealed record FastForward(SyncOutcome Outcome) : PullStage;
 
         public sealed record AutoMerged(SyncOutcome Outcome, IReadOnlyList<string> Files) : PullStage;
+
+        public sealed record MergeDeferred : PullStage;
 
         public sealed record Conflicted(IReadOnlyList<string> ConflictedPaths) : PullStage;
     }

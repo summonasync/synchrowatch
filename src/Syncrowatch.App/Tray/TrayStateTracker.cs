@@ -9,6 +9,7 @@ namespace Syncrowatch.App.Tray;
 public sealed class TrayStateTracker : INotifyPropertyChanged, IDisposable
 {
     private readonly ISyncEventBus _bus;
+    private readonly object _gate = new();
     private TrayState _state = TrayState.Idle;
     private bool _paused;
     private bool _pushPending;
@@ -22,42 +23,70 @@ public sealed class TrayStateTracker : INotifyPropertyChanged, IDisposable
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public TrayState State => _state;
+    public TrayState State
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _state;
+            }
+        }
+    }
 
-    public bool PushPending => _pushPending;
+    public bool PushPending
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _pushPending;
+            }
+        }
+    }
 
     public string ToolTipText
     {
         get
         {
-            var label = _state switch
+            lock (_gate)
             {
-                TrayState.Syncing => "syncing",
-                TrayState.Conflict => "merge conflict",
-                TrayState.Error => "error",
-                _ => "idle"
-            };
+                var label = _state switch
+                {
+                    TrayState.Syncing => "syncing",
+                    TrayState.Conflict => "merge conflict",
+                    TrayState.Error => "error",
+                    _ => "idle"
+                };
 
-            List<string> notes = [];
-            if (_paused)
-            {
-                notes.Add("paused");
+                List<string> notes = [];
+                if (_paused)
+                {
+                    notes.Add("paused");
+                }
+
+                if (_pushPending)
+                {
+                    notes.Add("push pending confirmation");
+                }
+
+                return notes.Count == 0
+                    ? $"Syncrowatch — {label}"
+                    : $"Syncrowatch — {label}, {string.Join(", ", notes)}";
             }
-
-            if (_pushPending)
-            {
-                notes.Add("push pending confirmation");
-            }
-
-            return notes.Count == 0
-                ? $"Syncrowatch — {label}"
-                : $"Syncrowatch — {label}, {string.Join(", ", notes)}";
         }
     }
 
     public void BeginSync()
     {
-        if (SetField(ref _state, TrayState.Syncing))
+        bool changed;
+        lock (_gate)
+        {
+            changed = _state != TrayState.Syncing;
+            _state = TrayState.Syncing;
+        }
+
+        if (changed)
         {
             Notify(nameof(State));
         }
@@ -74,7 +103,14 @@ public sealed class TrayStateTracker : INotifyPropertyChanged, IDisposable
             _ => TrayState.Error
         };
 
-        if (SetField(ref _state, settled))
+        bool changed;
+        lock (_gate)
+        {
+            changed = _state != settled;
+            _state = settled;
+        }
+
+        if (changed)
         {
             Notify(nameof(State));
             Notify(nameof(ToolTipText));
@@ -83,7 +119,14 @@ public sealed class TrayStateTracker : INotifyPropertyChanged, IDisposable
 
     public void SetPaused(bool paused)
     {
-        if (SetField(ref _paused, paused))
+        bool changed;
+        lock (_gate)
+        {
+            changed = _paused != paused;
+            _paused = paused;
+        }
+
+        if (changed)
         {
             Notify(nameof(ToolTipText));
         }
@@ -104,9 +147,15 @@ public sealed class TrayStateTracker : INotifyPropertyChanged, IDisposable
         switch (notification)
         {
             case SyncNotification.SyncCompleted:
-                if (_pushPending)
+                bool pendingCleared;
+                lock (_gate)
                 {
+                    pendingCleared = _pushPending;
                     _pushPending = false;
+                }
+
+                if (pendingCleared)
+                {
                     Notify(nameof(PushPending));
                 }
 
@@ -122,9 +171,15 @@ public sealed class TrayStateTracker : INotifyPropertyChanged, IDisposable
                 SetState(TrayState.Error);
                 break;
             case SyncNotification.PushPending:
-                if (!_pushPending)
+                bool newlyPending;
+                lock (_gate)
                 {
+                    newlyPending = !_pushPending;
                     _pushPending = true;
+                }
+
+                if (newlyPending)
+                {
                     Notify(nameof(PushPending));
                     Notify(nameof(ToolTipText));
                 }
@@ -135,23 +190,18 @@ public sealed class TrayStateTracker : INotifyPropertyChanged, IDisposable
 
     private void SetState(TrayState state)
     {
-        if (SetField(ref _state, state))
+        bool changed;
+        lock (_gate)
+        {
+            changed = _state != state;
+            _state = state;
+        }
+
+        if (changed)
         {
             Notify(nameof(ToolTipText));
         }
     }
 
     private void Notify(string? name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-
-    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? name = null)
-    {
-        if (EqualityComparer<T>.Default.Equals(field, value))
-        {
-            return false;
-        }
-
-        field = value;
-        Notify(name);
-        return true;
-    }
 }

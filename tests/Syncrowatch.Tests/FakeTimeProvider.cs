@@ -39,6 +39,14 @@ public sealed class FakeTimeProvider : TimeProvider
         Now = target;
     }
 
+    public void FireQueuedCallbacks()
+    {
+        foreach (var timer in _timers)
+        {
+            timer.FireIfQueued();
+        }
+    }
+
     private sealed class FakeTimer(FakeTimeProvider owner, TimerCallback callback, object? state) : ITimer
     {
         public TimeSpan? Deadline { get; private set; }
@@ -62,6 +70,14 @@ public sealed class FakeTimeProvider : TimeProvider
 
             Deadline = null;
             callback(state);
+        }
+
+        public void FireIfQueued()
+        {
+            if (!Disposed)
+            {
+                callback(state);
+            }
         }
 
         public void Dispose()
