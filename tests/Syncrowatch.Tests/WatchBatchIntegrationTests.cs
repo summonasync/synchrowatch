@@ -139,7 +139,7 @@ public sealed class WatchBatchIntegrationTests : IDisposable
         WatchedFolder = _root,
         RemoteUrl = "https://github.com/acme/private.git",
         Branch = "main",
-        Mode = SyncMode.Git
+        Mode = SyncRunMode.Auto
     };
 
     private void BootstrapRepository(bool withSyncIgnore = false)

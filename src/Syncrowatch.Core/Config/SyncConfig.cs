@@ -1,5 +1,3 @@
-using Synchro.Core;
-
 namespace Syncrowatch.Core.Config;
 
 public sealed record SyncConfig
@@ -12,7 +10,7 @@ public sealed record SyncConfig
     public required string WatchedFolder { get; init; }
     public required string RemoteUrl { get; init; }
     public required string Branch { get; init; }
-    public required SyncMode Mode { get; init; }
+    public SyncRunMode Mode { get; init; } = SyncRunMode.Auto;
     public TimeSpan Debounce { get; init; } = DefaultDebounce;
     public TimeSpan PollInterval { get; init; } = DefaultPollInterval;
     public CommitIdentity Identity { get; init; } = CommitIdentity.Default;

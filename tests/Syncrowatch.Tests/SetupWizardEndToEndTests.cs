@@ -62,7 +62,7 @@ public class SetupWizardEndToEndTests
         config.WatchedFolder.ShouldBe(fixture.WatchedFolder);
         config.RemoteUrl.ShouldBe(StandInUrl);
         config.Branch.ShouldBe("main");
-        config.Mode.ShouldBe(SyncMode.Git);
+        config.Mode.ShouldBe(SyncRunMode.Auto);
         config.Identity.Name.ShouldBe(CommitIdentity.Default.Name);
         config.Identity.Email.ShouldBe(CommitIdentity.Default.Email);
         config.Debounce.ShouldBe(SyncConfig.DefaultDebounce);

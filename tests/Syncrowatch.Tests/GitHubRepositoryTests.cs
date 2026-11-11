@@ -347,7 +347,7 @@ public class GitHubRepositoryTests
             WatchedFolder = watchedFolder ?? Path.GetTempPath(),
             RemoteUrl = remoteUrl ?? PrivateRepoUrl,
             Branch = "main",
-            Mode = SyncMode.Git,
+            Mode = SyncRunMode.Auto,
             Identity = CommitIdentity.Default
         },
             credentials ?? StoreWith(DummyToken),
@@ -394,7 +394,7 @@ public class GitHubRepositoryTests
                 WatchedFolder = WorkPath,
                 RemoteUrl = BarePath,
                 Branch = "main",
-                Mode = SyncMode.Git,
+                Mode = SyncRunMode.Auto,
                 Identity = CommitIdentity.Default
             },
                 Credentials,

@@ -12,7 +12,7 @@ public class JsonSyncConfigStoreTests
         WatchedFolder = "/home/peer/notes",
         RemoteUrl = "https://github.com/peer/notes.git",
         Branch = "main",
-        Mode = Synchro.Core.SyncMode.Git,
+        Mode = SyncRunMode.Auto,
         Debounce = TimeSpan.FromSeconds(17),
         PollInterval = TimeSpan.FromSeconds(90),
         Identity = new CommitIdentity { Name = "Peer", Email = "peer@users.noreply.github.com" }
@@ -39,10 +39,59 @@ public class JsonSyncConfigStoreTests
     }
 
     [Theory]
-    [InlineData("""{"WatchedFolder":"/home/peer/notes","RemoteUrl":"https://github.com/peer/notes.git","Branch":null,"Mode":"Git"}""")]
-    [InlineData("""{"WatchedFolder":" ","RemoteUrl":"https://github.com/peer/notes.git","Branch":"main","Mode":"Git"}""")]
-    [InlineData("""{"WatchedFolder":"/home/peer/notes","RemoteUrl":"https://github.com/peer/notes.git","Branch":"main","Mode":"Git","Identity":null}""")]
-    [InlineData("""{"WatchedFolder":"/home/peer/notes","RemoteUrl":"https://github.com/peer/notes.git","Branch":"main","Mode":"Git","Identity":{"Name":"Peer","Email":""}}""")]
+    [InlineData(SyncRunMode.Auto)]
+    [InlineData(SyncRunMode.Manual)]
+    [InlineData(SyncRunMode.SemiAuto)]
+    public async Task Save_Load_RoundTripsEveryRunMode(SyncRunMode mode)
+    {
+        var dir = TempDir.Create();
+        try
+        {
+            var store = new JsonSyncConfigStore(dir);
+
+            await store.Save(Config with { Mode = mode }, CancellationToken.None);
+            var outcome = await store.Load(CancellationToken.None);
+
+            outcome.ShouldBeOfType<Result<SyncConfig>.Ok>().Value.Mode.ShouldBe(mode);
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public async Task Load_StoreModeString_ReturnsInvalid()
+    {
+        var dir = TempDir.Create();
+        try
+        {
+            await File.WriteAllTextAsync(
+                SyncrowatchPaths.SettingsFile(dir),
+                """
+                {
+                  "WatchedFolder": "/home/peer/notes",
+                  "RemoteUrl": "https://github.com/peer/notes.git",
+                  "Branch": "main",
+                  "Mode": "Git"
+                }
+                """);
+
+            var outcome = await new JsonSyncConfigStore(dir).Load(CancellationToken.None);
+
+            outcome.ShouldBeOfType<Result<SyncConfig>.Fail>().Error.Code.ShouldBe("invalid");
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Theory]
+    [InlineData("""{"WatchedFolder":"/home/peer/notes","RemoteUrl":"https://github.com/peer/notes.git","Branch":null,"Mode":"Auto"}""")]
+    [InlineData("""{"WatchedFolder":" ","RemoteUrl":"https://github.com/peer/notes.git","Branch":"main","Mode":"Auto"}""")]
+    [InlineData("""{"WatchedFolder":"/home/peer/notes","RemoteUrl":"https://github.com/peer/notes.git","Branch":"main","Mode":"Auto","Identity":null}""")]
+    [InlineData("""{"WatchedFolder":"/home/peer/notes","RemoteUrl":"https://github.com/peer/notes.git","Branch":"main","Mode":"Auto","Identity":{"Name":"Peer","Email":""}}""")]
     public async Task Load_NullOrEmptyRequiredField_ReturnsInvalid(string json)
     {
         var dir = TempDir.Create();
@@ -73,7 +122,7 @@ public class JsonSyncConfigStoreTests
                   "WatchedFolder": "/home/peer/notes",
                   "RemoteUrl": "https://github.com/peer/notes.git",
                   "Branch": "main",
-                  "Mode": "Git",
+                  "Mode": "Auto",
                   "Debounce": "00:00:03"
                 }
                 """);
@@ -125,13 +174,14 @@ public class JsonSyncConfigStoreTests
                   "WatchedFolder": "/home/peer/notes",
                   "RemoteUrl": "https://github.com/peer/notes.git",
                   "Branch": "main",
-                  "Mode": "Git"
+                  "Mode": "Auto"
                 }
                 """);
 
             var outcome = await new JsonSyncConfigStore(dir).Load(CancellationToken.None);
 
             var ok = outcome.ShouldBeOfType<Result<SyncConfig>.Ok>();
+            ok.Value.Mode.ShouldBe(SyncRunMode.Auto);
             ok.Value.Debounce.ShouldBeGreaterThanOrEqualTo(SyncConfig.MinDebounce);
             ok.Value.Debounce.ShouldBeLessThanOrEqualTo(SyncConfig.MaxDebounce);
             ok.Value.PollInterval.ShouldBe(SyncConfig.DefaultPollInterval);

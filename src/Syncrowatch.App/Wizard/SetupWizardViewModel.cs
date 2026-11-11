@@ -24,7 +24,7 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
     private string _remoteUrl = string.Empty;
     private string _branch = FallbackBranch;
     private string _folderPath = string.Empty;
-    private bool _gitMode = true;
+    private SyncRunMode _runMode = SyncRunMode.Auto;
     private string _identityName = CommitIdentity.Default.Name;
     private string _identityEmail = CommitIdentity.Default.Email;
     private bool _repoValidated;
@@ -133,28 +133,22 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
         }
     }
 
-    public bool UseGitMode
+    public bool UseAutoMode
     {
-        get => _gitMode;
-        set
-        {
-            if (SetField(ref _gitMode, value))
-            {
-                Notify(nameof(UsePlainMode));
-            }
-        }
+        get => _runMode == SyncRunMode.Auto;
+        set => SelectRunMode(SyncRunMode.Auto, value);
     }
 
-    public bool UsePlainMode
+    public bool UseManualMode
     {
-        get => !_gitMode;
-        set
-        {
-            if (value)
-            {
-                UseGitMode = false;
-            }
-        }
+        get => _runMode == SyncRunMode.Manual;
+        set => SelectRunMode(SyncRunMode.Manual, value);
+    }
+
+    public bool UseSemiAutoMode
+    {
+        get => _runMode == SyncRunMode.SemiAuto;
+        set => SelectRunMode(SyncRunMode.SemiAuto, value);
     }
 
     public string IdentityName
@@ -438,12 +432,25 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
 
     private static string Short(string sha) => sha.Length <= 10 ? sha : sha[..10];
 
+    private void SelectRunMode(SyncRunMode mode, bool selected)
+    {
+        if (!selected || _runMode == mode)
+        {
+            return;
+        }
+
+        _runMode = mode;
+        Notify(nameof(UseAutoMode));
+        Notify(nameof(UseManualMode));
+        Notify(nameof(UseSemiAutoMode));
+    }
+
     private SyncConfig AssembleConfig() => new()
     {
         WatchedFolder = _folderPath.Trim(),
         RemoteUrl = _remoteUrl.Trim(),
         Branch = _branch,
-        Mode = _gitMode ? SyncMode.Git : SyncMode.Plain,
+        Mode = _runMode,
         Identity = new CommitIdentity { Name = _identityName.Trim(), Email = _identityEmail.Trim() }
     };
 

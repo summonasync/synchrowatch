@@ -16,7 +16,7 @@ public class BatchCommitterTests
         WatchedFolder = Root,
         RemoteUrl = "https://github.com/acme/private.git",
         Branch = "main",
-        Mode = SyncMode.Git,
+        Mode = SyncRunMode.Auto,
         Identity = new CommitIdentity { Name = "Syncrowatch", Email = "sync@local" }
     };
 

@@ -75,6 +75,6 @@ public class CompositionRootTests
         WatchedFolder = Path.GetTempPath(),
         RemoteUrl = remoteUrl,
         Branch = "main",
-        Mode = SyncMode.Git
+        Mode = SyncRunMode.Auto
     };
 }

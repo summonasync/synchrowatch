@@ -165,7 +165,7 @@ public class SetupWizardViewModelTests
         saved!.WatchedFolder.ShouldBe(FolderPath);
         saved.RemoteUrl.ShouldBe(RepoUrl);
         saved.Branch.ShouldBe("main");
-        saved.Mode.ShouldBe(SyncMode.Git);
+        saved.Mode.ShouldBe(SyncRunMode.Auto);
         saved.Identity.Name.ShouldBe(CommitIdentity.Default.Name);
         saved.Identity.Email.ShouldBe(CommitIdentity.Default.Email);
         saved.Debounce.ShouldBe(SyncConfig.DefaultDebounce);
@@ -208,6 +208,45 @@ public class SetupWizardViewModelTests
         await harness.Bootstrapper.DidNotReceiveWithAnyArgs().Execute(null!, default, default);
         harness.ViewModel.HasError.ShouldBeTrue();
         harness.ViewModel.Step.ShouldBe(WizardStep.Bootstrap);
+    }
+
+    [Theory]
+    [InlineData(SyncRunMode.Auto)]
+    [InlineData(SyncRunMode.Manual)]
+    [InlineData(SyncRunMode.SemiAuto)]
+    public async Task Finish_SelectedRunMode_IsPersisted(SyncRunMode mode)
+    {
+        var harness = new Harness();
+        SyncConfig? saved = null;
+        harness.ConfigStore.Save(Arg.Any<SyncConfig>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                saved = call.ArgAt<SyncConfig>(0);
+                return new Result<SyncConfig>.Ok(saved);
+            });
+        await ReachBootstrapAsync(harness, new Result<BootstrapPlan>.Ok(new BootstrapPlan.PublishFolder()));
+        SelectRunMode(harness.ViewModel, mode);
+
+        await harness.ViewModel.FinishAsync();
+
+        saved.ShouldNotBeNull();
+        saved!.Mode.ShouldBe(mode);
+    }
+
+    private static void SelectRunMode(SetupWizardViewModel viewModel, SyncRunMode mode)
+    {
+        switch (mode)
+        {
+            case SyncRunMode.Auto:
+                viewModel.UseAutoMode = true;
+                break;
+            case SyncRunMode.Manual:
+                viewModel.UseManualMode = true;
+                break;
+            case SyncRunMode.SemiAuto:
+                viewModel.UseSemiAutoMode = true;
+                break;
+        }
     }
 
     private static async Task ReachBootstrapAsync(Harness harness, Result<BootstrapPlan> assessOutcome)

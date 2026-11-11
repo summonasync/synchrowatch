@@ -41,8 +41,9 @@
 
     <StackPanel IsVisible="{Binding IsPreferencesStep}" Spacing="12">
       <TextBlock Text="Sync preferences" FontSize="18" FontWeight="SemiBold" />
-      <RadioButton GroupName="syncMode" Content="Git — keep history inside the folder" IsChecked="{Binding UseGitMode}" />
-      <RadioButton GroupName="syncMode" Content="Plain — keep history outside the folder" IsChecked="{Binding UsePlainMode}" />
+      <RadioButton GroupName="syncMode" Content="Auto — sync runs hands-off" IsChecked="{Binding UseAutoMode}" />
+      <RadioButton GroupName="syncMode" Content="Manual — sync only on explicit action" IsChecked="{Binding UseManualMode}" />
+      <RadioButton GroupName="syncMode" Content="Semi-auto — pulls automatically, push on confirm" IsChecked="{Binding UseSemiAutoMode}" />
       <TextBox Text="{Binding IdentityName}" Watermark="commit name" />
       <TextBox Text="{Binding IdentityEmail}" Watermark="commit email" />
       <Button Content="Continue" Command="{Binding ContinueCommand}" HorizontalAlignment="Right" />

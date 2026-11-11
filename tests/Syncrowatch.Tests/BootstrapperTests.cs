@@ -350,7 +350,7 @@ public class BootstrapperTests
                     WatchedFolder = folder,
                     RemoteUrl = remoteUrl,
                     Branch = "main",
-                    Mode = SyncMode.Git,
+                    Mode = SyncRunMode.Auto,
                     Identity = CommitIdentity.Default
                 },
                 remote,
@@ -409,7 +409,7 @@ public class BootstrapperTests
                 WatchedFolder = FolderPath,
                 RemoteUrl = StandInUrl,
                 Branch = "main",
-                Mode = SyncMode.Git,
+                Mode = SyncRunMode.Auto,
                 Identity = CommitIdentity.Default
             };
             var credentials = Substitute.For<ICredentialStore>();

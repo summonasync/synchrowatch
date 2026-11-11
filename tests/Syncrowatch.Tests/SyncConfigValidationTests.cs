@@ -78,11 +78,19 @@ public class SyncConfigValidationTests
         SyncConfigValidation.Validate(config)!.Message.ShouldContain("debounce");
     }
 
+    [Fact]
+    public void Validate_UndefinedRunMode_ReportsModeProblem()
+    {
+        var config = SampleConfig("https://github.com/peer/notes.git") with { Mode = (SyncRunMode)42 };
+
+        SyncConfigValidation.Validate(config)!.Message.ShouldContain("sync mode");
+    }
+
     private static SyncConfig SampleConfig(string url) => new()
     {
         WatchedFolder = "/home/peer/notes",
         RemoteUrl = url,
         Branch = "main",
-        Mode = SyncMode.Git
+        Mode = SyncRunMode.Auto
     };
 }

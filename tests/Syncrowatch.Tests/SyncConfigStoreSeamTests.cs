@@ -13,7 +13,7 @@ public class SyncConfigStoreSeamTests
         WatchedFolder = "/home/peer/notes",
         RemoteUrl = "git@github.com:peer/notes.git",
         Branch = "main",
-        Mode = Synchro.Core.SyncMode.Git,
+        Mode = SyncRunMode.Auto,
         Debounce = TimeSpan.FromSeconds(18),
         PollInterval = TimeSpan.FromSeconds(30)
     };
@@ -29,7 +29,7 @@ public class SyncConfigStoreSeamTests
         var ok = outcome.ShouldBeOfType<Result<SyncConfig>.Ok>();
         ok.Value.WatchedFolder.ShouldBe("/home/peer/notes");
         ok.Value.RemoteUrl.ShouldBe("git@github.com:peer/notes.git");
-        ok.Value.Mode.ShouldBe(Synchro.Core.SyncMode.Git);
+        ok.Value.Mode.ShouldBe(SyncRunMode.Auto);
         ok.Value.PollInterval.ShouldBe(TimeSpan.FromSeconds(30));
     }
 
