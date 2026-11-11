@@ -1,4 +1,5 @@
 using Synchro.Core;
+using Syncrowatch.Core.Engine;
 
 namespace Syncrowatch.Core.History;
 
@@ -11,4 +12,6 @@ public abstract record SyncNotification
     public sealed record MergeConflicted(DateTimeOffset OccurredUtc, string Branch, IReadOnlyList<string> ConflictedPaths) : SyncNotification;
 
     public sealed record SyncFailed(DateTimeOffset OccurredUtc, SyncError Error) : SyncNotification;
+
+    public sealed record PushPending(PendingPush Push) : SyncNotification;
 }

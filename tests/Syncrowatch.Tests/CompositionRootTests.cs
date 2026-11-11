@@ -2,9 +2,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Synchro.Core;
 using Syncrowatch.App;
+using Syncrowatch.App.Tray;
 using Syncrowatch.Core;
 using Syncrowatch.Core.Bootstrap;
 using Syncrowatch.Core.Config;
+using Syncrowatch.Core.Engine;
+using Syncrowatch.Core.History;
 using Syncrowatch.Core.Transport;
 using Xunit;
 
@@ -30,14 +33,27 @@ public class CompositionRootTests
     }
 
     [Fact]
-    public void Build_AfterConfigStoresLanded_RegistersStoresOnly()
+    public void Build_RegistersStoresAndSyncSeams_WithoutDirectEngine()
     {
         var provider = CompositionRoot.Build();
 
         provider.GetService<ISyncConfigStore>().ShouldNotBeNull();
         provider.GetService<ICredentialStore>().ShouldNotBeNull();
+        provider.GetService<ISyncEventBus>().ShouldNotBeNull();
+        provider.GetService<ISyncEventStore>().ShouldNotBeNull();
+        provider.GetService<IHistoryView>().ShouldNotBeNull();
+        provider.GetService<IPushConfirmation>().ShouldNotBeNull();
         provider.GetService<ISyncEngine>().ShouldBeNull();
         provider.GetService<IRemoteRepository>().ShouldBeNull();
+    }
+
+    [Fact]
+    public void Build_RegistersEngineAndWatcherFactories()
+    {
+        var provider = CompositionRoot.Build();
+
+        provider.GetService<Func<SyncConfig, ISyncEngine>>().ShouldNotBeNull();
+        provider.GetService<Func<SyncConfig, IFileWatching>>().ShouldNotBeNull();
     }
 
     [Fact]

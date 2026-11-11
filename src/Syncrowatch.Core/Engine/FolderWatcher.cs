@@ -1,11 +1,12 @@
 namespace Syncrowatch.Core.Engine;
 
-public sealed class FolderWatcher : IDisposable
+public sealed class FolderWatcher : IFileWatching
 {
     private readonly string _root;
     private readonly FileSystemWatcher _watcher;
     private CancellationTokenRegistration _registration;
     private int _disposed;
+    private bool _raising;
 
     public event Action<FolderChange>? ChangeDetected;
 
@@ -37,8 +38,25 @@ public sealed class FolderWatcher : IDisposable
 
     public void Start(CancellationToken cancellationToken = default)
     {
+        _raising = true;
         _watcher.EnableRaisingEvents = true;
         _registration = cancellationToken.Register(Dispose);
+    }
+
+    public void Suspend()
+    {
+        if (_raising)
+        {
+            _watcher.EnableRaisingEvents = false;
+        }
+    }
+
+    public void Resume()
+    {
+        if (_raising && Volatile.Read(ref _disposed) == 0)
+        {
+            _watcher.EnableRaisingEvents = true;
+        }
     }
 
     public void Dispose()
@@ -48,6 +66,7 @@ public sealed class FolderWatcher : IDisposable
             return;
         }
 
+        _raising = false;
         _registration.Dispose();
         _watcher.EnableRaisingEvents = false;
         _watcher.Dispose();

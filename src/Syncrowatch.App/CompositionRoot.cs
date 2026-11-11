@@ -1,9 +1,12 @@
 using Microsoft.Extensions.DependencyInjection;
+using Syncrowatch.App.Tray;
+using Syncrowatch.App.Wizard;
 using Syncrowatch.Core;
 using Syncrowatch.Core.Bootstrap;
 using Syncrowatch.Core.Config;
+using Syncrowatch.Core.Engine;
+using Syncrowatch.Core.History;
 using Syncrowatch.Core.Transport;
-using Syncrowatch.App.Wizard;
 
 namespace Syncrowatch.App;
 
@@ -24,6 +27,19 @@ public static class CompositionRoot
                 config,
                 new GitHubRepository(config, credentials, new GitProcess()),
                 new GitLocal(new GitProcess())));
+        services.AddSingleton<ISyncEventStore>(new JsonSyncEventStore(dataDirectory));
+        services.AddSingleton<SyncEventBus>();
+        services.AddSingleton<ISyncEventBus>(sp => sp.GetRequiredService<SyncEventBus>());
+        services.AddSingleton<IHistoryView, HistoryPlaceholder>();
+        services.AddSingleton<IPushConfirmation>(new PushConfirmationPrompt());
+        services.AddSingleton<Func<SyncConfig, IFileWatching>>(config => new FolderWatcher(config.WatchedFolder));
+        services.AddSingleton<Func<SyncConfig, ISyncEngine>>(sp => config => new SyncLoop(
+            config,
+            sp.GetRequiredService<Func<SyncConfig, IRemoteRepository>>()(config),
+            sp.GetRequiredService<ILocalGit>(),
+            sp.GetRequiredService<ISyncEventStore>(),
+            sp.GetRequiredService<ISyncEventBus>(),
+            pushConfirmation: sp.GetRequiredService<IPushConfirmation>()));
         services.AddTransient(sp => new SetupWizardWindow(sp));
         return services.BuildServiceProvider();
     }

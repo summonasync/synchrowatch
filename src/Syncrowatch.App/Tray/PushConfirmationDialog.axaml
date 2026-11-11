@@ -1,0 +1,22 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:Syncrowatch.App.Tray"
+        x:Class="Syncrowatch.App.Tray.PushConfirmationDialog"
+        x:DataType="vm:PushConfirmationViewModel"
+        x:CompileBindings="True"
+        Title="Syncrowatch push"
+        Width="440"
+        SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Topmost="True"
+        WindowStartupLocation="CenterScreen">
+  <StackPanel Margin="16" Spacing="12">
+    <TextBlock Text="Push to GitHub?" FontSize="16" FontWeight="SemiBold" />
+    <TextBlock TextWrapping="Wrap" Text="{Binding Message}" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Push now" Command="{Binding ConfirmCommand}" />
+      <Button Content="Later" Command="{Binding DismissCommand}" />
+    </StackPanel>
+  </StackPanel>
+</Window>

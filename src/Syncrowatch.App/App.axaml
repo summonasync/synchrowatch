@@ -6,15 +6,6 @@
     <FluentTheme />
   </Application.Styles>
   <TrayIcon.Icons>
-    <TrayIcon Icon="avares://syncrowatch/Assets/syncrowatch-tray.png" ToolTipText="Syncrowatch">
-      <TrayIcon.Menu>
-        <NativeMenu>
-          <NativeMenuItem Header="Sync now" />
-          <NativeMenuItem Header="Open folder" />
-          <NativeMenuItemSeparator />
-          <NativeMenuItem Header="Exit" />
-        </NativeMenu>
-      </TrayIcon.Menu>
-    </TrayIcon>
+    <TrayIcon Icon="avares://syncrowatch/Assets/syncrowatch-tray.png" ToolTipText="Syncrowatch" />
   </TrayIcon.Icons>
 </Application>
