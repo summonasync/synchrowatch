@@ -6,4 +6,4 @@ obj/
 .vs/
 .idea/
 .claude/
-dist/
+/dist/
