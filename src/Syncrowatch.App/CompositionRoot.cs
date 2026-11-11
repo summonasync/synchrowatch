@@ -41,7 +41,7 @@ public static class CompositionRoot
             new GitProcess(),
             sp.GetRequiredService<IRelaySeenState>(),
             sp.GetRequiredService<ISyncEventBus>()));
-        services.AddSingleton<ITrayStateUpdater>(new SilentTrayStateUpdater());
+        services.AddSingleton<ITrayStateUpdater>(new MarshalledTrayStateUpdater(new SilentTrayStateUpdater()));
         services.AddSingleton<IToastWindowFactory>(new ToastWindowFactory());
         services.AddSingleton(sp => new ToastService(
             sp.GetRequiredService<ISyncEventBus>(), sp.GetRequiredService<IToastWindowFactory>()));

@@ -5,5 +5,6 @@ public enum ToastKind
     AutoMerged,
     Conflict,
     Failure,
-    RelayPackage
+    RelayPackage,
+    RelayWarning
 }

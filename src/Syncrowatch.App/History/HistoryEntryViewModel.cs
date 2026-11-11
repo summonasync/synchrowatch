@@ -12,7 +12,8 @@ public sealed class HistoryEntryViewModel(SyncEvent @event, DateTimeOffset nowUt
         SyncEventKind.CommitOut => "Pushed",
         SyncEventKind.AutoMerged => "Auto-merged",
         SyncEventKind.MergeConflicted => "Conflict",
-        _ => "Failed"
+        SyncEventKind.SyncFailed => "Failed",
+        _ => "Unknown"
     };
 
     public string TimeText { get; } = RelativeTime.Format(@event.OccurredUtc, nowUtc);

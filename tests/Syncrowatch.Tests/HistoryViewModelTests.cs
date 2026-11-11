@@ -89,6 +89,16 @@ public sealed class HistoryViewModelTests : IDisposable
     }
 
     [Fact]
+    public void EntryLabel_ForUnmappedStoreKind_ShowsUnknownInsteadOfFailed()
+    {
+        var entry = new HistoryEntryViewModel(
+            new SyncEvent(1, DateTimeOffset.UtcNow, (SyncEventKind)99, "main", "detail", []),
+            DateTimeOffset.UtcNow);
+
+        entry.Label.ShouldBe("Unknown");
+    }
+
+    [Fact]
     public async Task RefreshCommand_LoadsEntriesThroughTheBus()
     {
         var store = new JsonSyncEventStore(_directory);

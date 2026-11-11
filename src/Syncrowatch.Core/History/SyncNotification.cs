@@ -20,4 +20,8 @@ public abstract record SyncNotification
         string Project,
         string PackageFile,
         string CliCommand) : SyncNotification;
+
+    public sealed record RelayEntriesSkipped(DateTimeOffset OccurredUtc, int Count) : SyncNotification;
+
+    public sealed record RelayStateCorrupted(DateTimeOffset OccurredUtc) : SyncNotification;
 }

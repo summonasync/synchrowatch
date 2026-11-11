@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Threading;
 
@@ -19,9 +20,27 @@ public partial class ToastWindow : Window
     {
         _toast = toast;
         DataContext = toast;
+        toast.PropertyChanged += OnToastPropertyChanged;
     }
 
     public event EventHandler? Expired;
+
+    private void OnToastPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(ToastViewModel.Slot) || _toast is not { } toast)
+        {
+            return;
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            PositionAtSlot(toast);
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(() => PositionAtSlot(toast));
+        }
+    }
 
     protected override void OnOpened(EventArgs e)
     {

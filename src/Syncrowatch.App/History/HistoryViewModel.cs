@@ -159,7 +159,7 @@ public sealed class HistoryViewModel : INotifyPropertyChanged
 
         _filter = kind;
         NotifyFilterButtons();
-        _ = RefreshAsync();
+        RefreshCommand.Execute(null);
     }
 
     private void NotifyFilterButtons()

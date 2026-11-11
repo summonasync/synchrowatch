@@ -42,8 +42,9 @@ public sealed class ToastService : IDisposable
                 _windows.Dismiss(oldest);
             }
 
-            var toast = new ToastViewModel(content) { Slot = _active.Count };
+            var toast = new ToastViewModel(content);
             _active.Add(toast);
+            ReassignSlots();
             _windows.Present(toast, () => Release(toast));
         }
     }
@@ -53,6 +54,15 @@ public sealed class ToastService : IDisposable
         lock (_gate)
         {
             _active.Remove(toast);
+            ReassignSlots();
+        }
+    }
+
+    private void ReassignSlots()
+    {
+        for (var index = 0; index < _active.Count; index++)
+        {
+            _active[index].Slot = index;
         }
     }
 
@@ -81,6 +91,14 @@ public sealed class ToastService : IDisposable
             $"Package from {package.Project}",
             package.PackageFile,
             package.CliCommand),
+        SyncNotification.RelayEntriesSkipped skipped => new ToastContent(
+            ToastKind.RelayWarning,
+            "Relay entry skipped",
+            $"{skipped.Count} malformed relay entries skipped"),
+        SyncNotification.RelayStateCorrupted => new ToastContent(
+            ToastKind.RelayWarning,
+            "Relay state reset",
+            "relay seen-state file was corrupted and reset; packages may be re-detected"),
         _ => null
     };
 

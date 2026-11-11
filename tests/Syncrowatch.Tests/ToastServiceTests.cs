@@ -66,6 +66,43 @@ public sealed class ToastServiceTests
     }
 
     [Fact]
+    public void SkippedRelayEntriesEvent_ShowsWarningToast()
+    {
+        var harness = new Harness();
+        harness.Bus.Publish(new SyncNotification.RelayEntriesSkipped(Now, 3));
+
+        var toast = harness.Factory.Presented.ShouldHaveSingleItem();
+        toast.Kind.ShouldBe(ToastKind.RelayWarning);
+        toast.Title.ShouldBe("Relay entry skipped");
+        toast.Message.ShouldContain("3 malformed relay entries skipped");
+        toast.HasCommand.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void CorruptedRelayStateEvent_ShowsResetToast()
+    {
+        var harness = new Harness();
+        harness.Bus.Publish(new SyncNotification.RelayStateCorrupted(Now));
+
+        var toast = harness.Factory.Presented.ShouldHaveSingleItem();
+        toast.Kind.ShouldBe(ToastKind.RelayWarning);
+        toast.Title.ShouldBe("Relay state reset");
+    }
+
+    [Fact]
+    public void SlotAssignment_StaysUniqueAcrossForceCloseAndExpiry()
+    {
+        var harness = new Harness();
+        harness.Bus.Publish(new SyncNotification.MergeConflicted(Now, "main", ["one.md"]));
+        harness.Bus.Publish(new SyncNotification.MergeConflicted(Now, "main", ["two.md"]));
+        harness.Bus.Publish(new SyncNotification.MergeConflicted(Now, "main", ["three.md"]));
+        harness.Bus.Publish(new SyncNotification.MergeConflicted(Now, "main", ["four.md"]));
+
+        var surviving = harness.Factory.Presented.Skip(1).ToList();
+        surviving.Select(toast => toast.Slot).ShouldBe([0, 1, 2]);
+    }
+
+    [Fact]
     public void CompletedEvent_DoesNotProduceToast()
     {
         var harness = new Harness();

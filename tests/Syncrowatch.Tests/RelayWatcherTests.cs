@@ -88,6 +88,74 @@ public sealed class RelayWatcherTests : IDisposable
     }
 
     [Fact]
+    public async Task Poll_HostileRelayNames_SkipsEntriesAndWarnsWithoutLeakingIntoCommands()
+    {
+        var harness = CreateHarness();
+        harness.DropPackage("with space", "pack.synchr", "one");
+        harness.DropPackage("$(id)", "pack.synchr", "two");
+        harness.DropPackage("back`tick", "pack.synchr", "three");
+        harness.DropPackage("проект", "pack.synchr", "four");
+        harness.DropPackage("alpha", "pa\"ck.synchr", "five");
+        harness.DropPackage("alpha", "good-pack.synchr", "six");
+
+        var outcome = await harness.Watcher(harness.Bus, "Pavel").Poll(CancellationToken.None);
+
+        var packages = outcome.ShouldBeOfType<Result<IReadOnlyList<RelayPackage>>.Ok>().Value;
+        packages.Select(package => package.RelayPath).ShouldBe(["alpha/good-pack.synchr"]);
+        packages[0].CliCommand.ShouldBe("synchro apply \"alpha/good-pack.synchr\" --peer \"Pavel\"");
+        packages[0].CliCommand.ShouldMatch(@"^[A-Za-z0-9._\- /""]+$");
+
+        var warning = harness.Notifications.OfType<SyncNotification.RelayEntriesSkipped>().ShouldHaveSingleItem();
+        warning.Count.ShouldBe(5);
+
+        foreach (var package in packages)
+        {
+            package.CliCommand.ShouldNotContain("with space");
+            package.CliCommand.ShouldNotContain("$(id)");
+            package.CliCommand.ShouldNotContain("back`tick");
+            package.CliCommand.ShouldNotContain("проект");
+            package.CliCommand.ShouldNotContain("pa\"ck");
+        }
+    }
+
+    [Fact]
+    public async Task Poll_RepeatedSkippedStreak_CoalescesWarningByCount()
+    {
+        var harness = CreateHarness();
+        harness.DropPackage("with space", "pack.synchr", "one");
+        var watcher = harness.Watcher(harness.Bus, "Pavel");
+
+        (await watcher.Poll(CancellationToken.None)).ShouldBeOfType<Result<IReadOnlyList<RelayPackage>>.Ok>();
+        var warningsAfterFirst = harness.Notifications.OfType<SyncNotification.RelayEntriesSkipped>().Count();
+
+        (await watcher.Poll(CancellationToken.None)).ShouldBeOfType<Result<IReadOnlyList<RelayPackage>>.Ok>();
+        var warningsAfterSecond = harness.Notifications.OfType<SyncNotification.RelayEntriesSkipped>().Count();
+
+        warningsAfterFirst.ShouldBe(1);
+        warningsAfterSecond.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Poll_CorruptedSeenState_QuarantinesOnceAndStillDetects()
+    {
+        var harness = CreateHarness();
+        harness.DropPackage("alpha", "fix-pack.synchr", "sealed bytes");
+        Directory.CreateDirectory(harness.SeenDirectory);
+        File.WriteAllText(Path.Combine(harness.SeenDirectory, RelaySeenStateStore.FileName), "{ broken");
+
+        var outcome = await harness.Watcher(harness.Bus, "Pavel").Poll(CancellationToken.None);
+
+        outcome.ShouldBeOfType<Result<IReadOnlyList<RelayPackage>>.Ok>().Value.ShouldHaveSingleItem();
+        harness.Notifications.OfType<SyncNotification.RelayStateCorrupted>().ShouldHaveSingleItem();
+
+        File.Exists(Path.Combine(harness.SeenDirectory, RelaySeenStateStore.FileName + ".bak")).ShouldBeTrue();
+
+        (await harness.Watcher(harness.Bus, "Pavel").Poll(CancellationToken.None))
+            .ShouldBeOfType<Result<IReadOnlyList<RelayPackage>>.Ok>().Value.ShouldBeEmpty();
+        harness.Notifications.OfType<SyncNotification.RelayStateCorrupted>().ShouldHaveSingleItem();
+    }
+
+    [Fact]
     public async Task Poll_RepackedPackage_NewBlobShaTriggersFreshDetection()
     {
         var harness = CreateHarness();

@@ -57,6 +57,17 @@ public sealed class TrayStateWatcherTests
     }
 
     [Fact]
+    public void RelayWarningEvents_LeaveTrayStateAlone()
+    {
+        var harness = new Harness();
+
+        harness.Bus.Publish(new SyncNotification.RelayEntriesSkipped(Now, 2));
+        harness.Bus.Publish(new SyncNotification.RelayStateCorrupted(Now));
+
+        harness.Updates.ShouldBeEmpty();
+    }
+
+    [Fact]
     public void Dispose_UnsubscribesFromTheBus()
     {
         var harness = new Harness();

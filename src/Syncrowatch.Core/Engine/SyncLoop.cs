@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Text.RegularExpressions;
 using Synchro.Core;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.History;
@@ -14,8 +13,6 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
 
     private static readonly SyncError DirtyTree =
         new("dirty_tree", "watched folder carries uncommitted changes; sync cycle refused");
-
-    private static readonly Regex RemoteUrlPattern = new(@"(?:https?|ssh)://[^\s'""']+", RegexOptions.Compiled);
 
     private readonly SyncConfig _config;
     private readonly IRemoteRepository _remote;
@@ -549,7 +546,7 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
 
     private async Task<Result<SyncCycleReport>> FailCycleAsync(SyncError error, CancellationToken cancellationToken)
     {
-        var redacted = error with { Message = RedactRemote(error.Message) };
+        var redacted = error with { Message = RemoteUrlRedactor.Scrub(error.Message) };
         await AnnounceFailure(
             new SyncEventDraft(SyncEventKind.SyncFailed, _config.Branch, redacted.Message, []),
             new SyncNotification.SyncFailed(_time.GetUtcNow(), redacted),
@@ -606,9 +603,6 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
 
     private Task RecordAsync(SyncEventDraft draft, CancellationToken cancellationToken) =>
         _history.Append(draft, cancellationToken);
-
-    private static string RedactRemote(string message) =>
-        RemoteUrlPattern.Replace(message, "[redacted-remote]");
 
     private abstract record PullStage
     {
