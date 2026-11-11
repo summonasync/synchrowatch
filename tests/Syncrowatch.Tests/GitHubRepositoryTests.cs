@@ -305,6 +305,43 @@ public class GitHubRepositoryTests
     }
 
     [Fact]
+    public async Task MergeFetchedHead_UnreadableMergeState_AttemptsAbortBeforeSurfacing()
+    {
+        var step = -1;
+        var runner = new FakeGitRunner(_ =>
+        {
+            step++;
+            return step switch
+            {
+                0 => new GitCommandResult(0, "shaBefore\n", string.Empty),
+                1 => new GitCommandResult(128, string.Empty, "fatal: refusing to merge unrelated histories"),
+                2 => new GitCommandResult(128, string.Empty, "fatal: unable to read the working tree index"),
+                _ => new GitCommandResult(0, string.Empty, string.Empty)
+            };
+        });
+        var repository = BuildRepository(runner);
+
+        var outcome = await repository.MergeFetchedHead(CancellationToken.None);
+
+        outcome.ShouldBeOfType<Result<MergeOutcome>.Fail>().Error.Code.ShouldBe("git_error");
+        runner.Invocations.ShouldContain(invocation => invocation.Arguments.Contains("--abort"));
+    }
+
+    [Fact]
+    public async Task LocalMergeInvocations_PinLocaleAndPromptSuppression()
+    {
+        var runner = new FakeGitRunner(_ => new GitCommandResult(0, "sha\n", string.Empty));
+        var repository = BuildRepository(runner);
+
+        await repository.MergeFetchedHead(CancellationToken.None);
+
+        var merge = runner.Invocations.Single(invocation => invocation.Arguments.Contains("merge"));
+        merge.Environment["LC_ALL"].ShouldBe("C");
+        merge.Environment["GIT_TERMINAL_PROMPT"].ShouldBe("0");
+        merge.Environment["GIT_CONFIG_NOSYSTEM"].ShouldBe("1");
+    }
+
+    [Fact]
     public async Task Push_ToBareStandIn_MovesRemoteTipWithoutCredentialMaterial()
     {
         using var environment = new GitConfigSandbox();

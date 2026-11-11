@@ -93,11 +93,20 @@ public sealed class GitHubRepository : IRemoteRepository
 
             if (!merged.Succeeded)
             {
-                var unmerged = await UnmergedPathsAsync(cancellationToken).ConfigureAwait(false);
-                if (unmerged.Count > 0)
+                var unmerged = await RunLocalAsync(
+                    ["diff", "--name-only", "--diff-filter=U", "-z"], cancellationToken).ConfigureAwait(false);
+                if (unmerged.Succeeded)
+                {
+                    var conflicted = SplitNul(unmerged.StandardOutput);
+                    if (conflicted.Count > 0)
+                    {
+                        await TryAbortMergeAsync().ConfigureAwait(false);
+                        return new Result<MergeOutcome>.Ok(new MergeOutcome.Conflicted(conflicted));
+                    }
+                }
+                else
                 {
                     await TryAbortMergeAsync().ConfigureAwait(false);
-                    return new Result<MergeOutcome>.Ok(new MergeOutcome.Conflicted(unmerged));
                 }
 
                 GitFailure.EnsureSuccess(merged, "merge");
@@ -108,6 +117,15 @@ public sealed class GitHubRepository : IRemoteRepository
                 ? []
                 : await ChangedPathsAsync(before, cancellationToken).ConfigureAwait(false);
             return new Result<MergeOutcome>.Ok(new MergeOutcome.Merged(before, after, files));
+        });
+
+    public Task<Result<string>> TrackingTip(string branch, CancellationToken cancellationToken) =>
+        TransportResult.Capture<string>(async () =>
+        {
+            var name = GitArgumentGuards.RefName(branch);
+            var tip = await RunLocalAsync(
+                ["rev-parse", "--verify", $"refs/remotes/origin/{name}"], cancellationToken).ConfigureAwait(false);
+            return new Result<string>.Ok(tip.Succeeded ? tip.StandardOutput.Trim() : string.Empty);
         });
 
     public Task<Result<SyncOutcome>> Push(string branch, CancellationToken cancellationToken) =>
@@ -193,7 +211,8 @@ public sealed class GitHubRepository : IRemoteRepository
         GitInvocation invocation = new()
         {
             Arguments = command,
-            WorkingDirectory = _config.WatchedFolder
+            WorkingDirectory = _config.WatchedFolder,
+            Environment = GitEnv.PromptDisabled
         };
         return _runner.RunAsync(invocation, cancellationToken);
     }
@@ -207,12 +226,6 @@ public sealed class GitHubRepository : IRemoteRepository
             Result<PersonalAccessToken>.Fail failure => throw new GitCredentialUnavailableException(failure.Error),
             _ => throw new InvalidOperationException("credential outcome is neither ok nor fail")
         };
-    }
-
-    private async Task<IReadOnlyList<string>> UnmergedPathsAsync(CancellationToken cancellationToken)
-    {
-        var unmerged = await RunLocalAsync(["diff", "--name-only", "--diff-filter=U", "-z"], cancellationToken).ConfigureAwait(false);
-        return unmerged.Succeeded ? SplitNul(unmerged.StandardOutput) : [];
     }
 
     private async Task<IReadOnlyList<string>> ChangedPathsAsync(string fromSha, CancellationToken cancellationToken)

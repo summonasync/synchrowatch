@@ -13,6 +13,8 @@ public interface IRemoteRepository
 
     Task<Result<MergeOutcome>> MergeFetchedHead(CancellationToken cancellationToken);
 
+    Task<Result<string>> TrackingTip(string branch, CancellationToken cancellationToken);
+
     Task<Result<SyncOutcome>> Push(string branch, CancellationToken cancellationToken);
 
     Task<Result<SyncOutcome>> PushForceWithLease(string branch, string expectedRemoteSha, CancellationToken cancellationToken);

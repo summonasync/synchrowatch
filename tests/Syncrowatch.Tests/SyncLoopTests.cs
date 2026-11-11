@@ -72,6 +72,8 @@ public sealed class SyncLoopTests : IDisposable
         remote.Push("main", Arg.Any<CancellationToken>())
             .Returns(new Result<SyncOutcome>.Ok(new SyncOutcome("main", "remote", "shaMerge")));
         using var loop = BuildLoop(remote, CleanLocal());
+        remote.TrackingTip("main", Arg.Any<CancellationToken>())
+            .Returns(new Result<string>.Ok("remote"));
 
         var outcome = await loop.SyncOnce(CancellationToken.None);
 
@@ -163,6 +165,8 @@ public sealed class SyncLoopTests : IDisposable
             .Returns(new Result<SyncOutcome>.Ok(new SyncOutcome("main", "remote", "shaLocal")));
         var local = CleanLocal();
         using var loop = BuildLoop(remote, local);
+        remote.TrackingTip("main", Arg.Any<CancellationToken>())
+            .Returns(new Result<string>.Ok("remote"));
         loop.AcceptBatch(["notes.txt"]);
 
         var outcome = await loop.SyncOnce(CancellationToken.None);
@@ -194,6 +198,70 @@ public sealed class SyncLoopTests : IDisposable
 
         outcome.ShouldBeOfType<Result<SyncCycleReport>.Fail>().Error.Code.ShouldBe("conflict");
         await remote.DidNotReceive().Pull(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SyncOnce_PushFailureStrandsMergeCommit_NextCycleRetriesIt()
+    {
+        var remote = Substitute.For<IRemoteRepository>();
+        remote.Pull("main", Arg.Any<CancellationToken>())
+            .Returns(
+                new Result<SyncOutcome>.Fail(SyncError.Conflict("not possible to fast-forward, aborting")),
+                new Result<SyncOutcome>.Ok(new SyncOutcome("main", "shaMerge", "shaMerge")));
+        remote.MergeFetchedHead(Arg.Any<CancellationToken>())
+            .Returns(new Result<MergeOutcome>.Ok(new MergeOutcome.Merged("shaLocal", "shaMerge", ["notes.txt"])));
+        remote.Push("main", Arg.Any<CancellationToken>())
+            .Returns(
+                new Result<SyncOutcome>.Fail(new SyncError("unreachable", "could not resolve host")),
+                new Result<SyncOutcome>.Ok(new SyncOutcome("main", "remoteOld", "shaMerge")));
+        var local = CleanLocal();
+        local.HeadInfo(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new Result<LocalHead>.Ok(new LocalHead("main", "shaMerge")));
+        using var loop = BuildLoop(remote, local);
+        remote.TrackingTip("main", Arg.Any<CancellationToken>())
+            .Returns(new Result<string>.Ok("remoteOld"));
+
+        (await loop.SyncOnce(CancellationToken.None))
+            .ShouldBeOfType<Result<SyncCycleReport>.Fail>().Error.Code.ShouldBe("unreachable");
+
+        var second = await loop.SyncOnce(CancellationToken.None);
+
+        var ok = second.ShouldBeOfType<Result<SyncCycleReport>.Ok>();
+        ok.Value.Pulled.ShouldBeNull();
+        ok.Value.Pushed.ShouldNotBeNull().ToSha.ShouldBe("shaMerge");
+        await remote.Received(2).Push("main", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SyncOnce_RepeatedIdenticalFailure_RecordsSingleHistoryEvent()
+    {
+        var remote = Substitute.For<IRemoteRepository>();
+        remote.Pull("main", Arg.Any<CancellationToken>())
+            .Returns(new Result<SyncOutcome>.Fail(new SyncError("unreachable", "could not resolve host")));
+        using var loop = BuildLoop(remote, CleanLocal());
+
+        await loop.SyncOnce(CancellationToken.None);
+        await loop.SyncOnce(CancellationToken.None);
+
+        var events = await RecordedEvents();
+        events.Select(@event => @event.Kind).ShouldBe([SyncEventKind.SyncFailed]);
+        _notifications.OfType<SyncNotification.SyncFailed>().ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public async Task SyncOnce_FailureDetailEmbeddingRemoteUrl_PersistsRedacted()
+    {
+        var remote = Substitute.For<IRemoteRepository>();
+        remote.Pull("main", Arg.Any<CancellationToken>())
+            .Returns(new Result<SyncOutcome>.Fail(new SyncError(
+                "unreachable",
+                "fatal: unable to access 'https://x-access-token:ghp_secret1234@github.com/acme/private.git/': could not resolve host")));
+        using var loop = BuildLoop(remote, CleanLocal());
+
+        await loop.SyncOnce(CancellationToken.None);
+
+        var events = await RecordedEvents();
+        events.Single().Detail.ShouldBe("fatal: unable to access '[redacted-remote]': could not resolve host");
     }
 
     [Fact]
@@ -310,8 +378,12 @@ public sealed class SyncLoopTests : IDisposable
         await remote.DidNotReceive().Pull(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
-    private SyncLoop BuildLoop(IRemoteRepository remote, ILocalGit local, TimeProvider? timeProvider = null) =>
-        new(Config(), remote, local, _store, _bus, timeProvider);
+    private SyncLoop BuildLoop(IRemoteRepository remote, ILocalGit local, TimeProvider? timeProvider = null)
+    {
+        remote.TrackingTip(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new Result<string>.Ok("shaHead"));
+        return new SyncLoop(Config(), remote, local, _store, _bus, timeProvider);
+    }
 
     private static SyncConfig Config() => new()
     {
@@ -332,6 +404,8 @@ public sealed class SyncLoopTests : IDisposable
                 Arg.Any<string>(), Arg.Any<CommitIdentity>(), Arg.Any<string>(),
                 Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns(new Result<CommitOutcome>.Ok(new CommitOutcome([], "shaLocal")));
+        local.HeadInfo(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new Result<LocalHead>.Ok(new LocalHead("main", "shaHead")));
         return local;
     }
 

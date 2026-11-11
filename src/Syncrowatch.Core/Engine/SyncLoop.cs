@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 using Synchro.Core;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.History;
@@ -9,9 +10,12 @@ namespace Syncrowatch.Core.Engine;
 public sealed class SyncLoop : ISyncEngine, IDisposable
 {
     private const string ConflictCode = "conflict";
+    private const int MaxPendingPaths = 4096;
 
     private static readonly SyncError DirtyTree =
         new("dirty_tree", "watched folder carries uncommitted changes; sync cycle refused");
+
+    private static readonly Regex RemoteUrlPattern = new(@"(?:https?|ssh)://[^\s'""']+", RegexOptions.Compiled);
 
     private readonly SyncConfig _config;
     private readonly IRemoteRepository _remote;
@@ -28,6 +32,7 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
     private bool _started;
     private DateTimeOffset? _lastCycleUtc;
     private SyncError? _lastError;
+    private SyncEventDraft? _lastFailureEvent;
     private CancellationToken _cycleToken = CancellationToken.None;
     private CancellationTokenRegistration _registration;
     private Task _cycleTask = Task.CompletedTask;
@@ -67,6 +72,11 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
     {
         foreach (var relativePath in relativePaths)
         {
+            if (_pending.Count >= MaxPendingPaths)
+            {
+                return;
+            }
+
             _pending.Enqueue(relativePath);
         }
     }
@@ -76,6 +86,11 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
         ObjectDisposedException.ThrowIf(_disposed == 1, this);
         lock (_statusGate)
         {
+            if (_started)
+            {
+                return;
+            }
+
             _started = true;
             _cycleToken = cancellationToken;
             _registration = cancellationToken.Register(Dispose);
@@ -135,7 +150,12 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
             return;
         }
 
-        var token = _cycleToken;
+        CancellationToken token;
+        lock (_statusGate)
+        {
+            token = _cycleToken;
+        }
+
         _cycleTask = Task.Run(async () =>
         {
             try
@@ -147,7 +167,7 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
             }
             catch (Exception ex)
             {
-                await StopWithAsync(new SyncError("sync_error", ex.Message), CancellationToken.None).ConfigureAwait(false);
+                await FailCycleAsync(new SyncError("sync_error", ex.Message), CancellationToken.None).ConfigureAwait(false);
             }
             finally
             {
@@ -170,34 +190,34 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
     private async Task<Result<SyncCycleReport>> CycleAsync(CancellationToken cancellationToken)
     {
         var started = _time.GetUtcNow();
-        var batch = await CommitPendingBatchAsync(cancellationToken).ConfigureAwait(false);
-        if (batch.Error is { } batchError)
+        var batchError = await CommitPendingBatchAsync(cancellationToken).ConfigureAwait(false);
+        if (batchError is not null)
         {
-            return await StopWithAsync(batchError, cancellationToken).ConfigureAwait(false);
+            return await FailCycleAsync(batchError, cancellationToken).ConfigureAwait(false);
         }
 
         var clean = await _local.IsWorkingTreeEmpty(_config.WatchedFolder, cancellationToken).ConfigureAwait(false);
         if (clean is not Result<bool>.Ok probe)
         {
-            return await StopWithAsync(((Result<bool>.Fail)clean).Error, cancellationToken).ConfigureAwait(false);
+            return await FailCycleAsync(((Result<bool>.Fail)clean).Error, cancellationToken).ConfigureAwait(false);
         }
 
         if (!probe.Value)
         {
-            return await StopWithAsync(DirtyTree, cancellationToken).ConfigureAwait(false);
+            return await FailCycleAsync(DirtyTree, cancellationToken).ConfigureAwait(false);
         }
 
         var pulled = await PullAsync(cancellationToken).ConfigureAwait(false);
         if (pulled is Result<PullStage>.Fail pullFailure)
         {
-            return await StopWithAsync(pullFailure.Error, cancellationToken).ConfigureAwait(false);
+            return await FailCycleAsync(pullFailure.Error, cancellationToken).ConfigureAwait(false);
         }
 
         var stage = ((Result<PullStage>.Ok)pulled).Value;
         switch (stage)
         {
             case PullStage.Conflicted conflicted:
-                return await StopConflictedAsync(conflicted.ConflictedPaths, cancellationToken).ConfigureAwait(false);
+                return await FailConflictedAsync(conflicted.ConflictedPaths, cancellationToken).ConfigureAwait(false);
             case PullStage.FastForward forward:
                 await RecordAsync(new SyncEventDraft(
                     SyncEventKind.CommitIn, _config.Branch, $"{forward.Outcome.FromSha}..{forward.Outcome.ToSha}", []),
@@ -211,13 +231,25 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
                 break;
         }
 
+        var head = await _local.HeadInfo(_config.WatchedFolder, cancellationToken).ConfigureAwait(false);
+        if (head is not Result<LocalHead>.Ok headOk)
+        {
+            return await FailCycleAsync(((Result<LocalHead>.Fail)head).Error, cancellationToken).ConfigureAwait(false);
+        }
+
+        var tracking = await _remote.TrackingTip(_config.Branch, cancellationToken).ConfigureAwait(false);
+        if (tracking is not Result<string>.Ok tipOk)
+        {
+            return await FailCycleAsync(((Result<string>.Fail)tracking).Error, cancellationToken).ConfigureAwait(false);
+        }
+
         SyncOutcome? pushed = null;
-        if (batch.CommitSha is not null || stage is PullStage.AutoMerged)
+        if (headOk.Value.Sha != tipOk.Value)
         {
             var pushedResult = await _remote.Push(_config.Branch, cancellationToken).ConfigureAwait(false);
             if (pushedResult is not Result<SyncOutcome>.Ok pushOk)
             {
-                return await StopWithAsync(((Result<SyncOutcome>.Fail)pushedResult).Error, cancellationToken).ConfigureAwait(false);
+                return await FailCycleAsync(((Result<SyncOutcome>.Fail)pushedResult).Error, cancellationToken).ConfigureAwait(false);
             }
 
             pushed = pushOk.Value;
@@ -242,12 +274,13 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
         {
             _lastCycleUtc = started;
             _lastError = null;
+            _lastFailureEvent = null;
         }
 
         return new Result<SyncCycleReport>.Ok(report);
     }
 
-    private async Task<BatchStage> CommitPendingBatchAsync(CancellationToken cancellationToken)
+    private async Task<SyncError?> CommitPendingBatchAsync(CancellationToken cancellationToken)
     {
         List<string> batch = [];
         while (_pending.TryDequeue(out var relativePath))
@@ -257,14 +290,14 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
 
         if (batch.Count == 0)
         {
-            return new BatchStage(null, null);
+            return null;
         }
 
         var committed = await _committer.CommitBatch(batch, cancellationToken).ConfigureAwait(false);
         return committed switch
         {
-            Result<CommitOutcome>.Ok outcome => new BatchStage(outcome.Value.CommitSha, null),
-            Result<CommitOutcome>.Fail failure => new BatchStage(null, failure.Error),
+            Result<CommitOutcome>.Ok => null,
+            Result<CommitOutcome>.Fail failure => failure.Error,
             _ => throw new InvalidOperationException("batch outcome is neither ok nor fail")
         };
     }
@@ -303,23 +336,50 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
         };
     }
 
-    private async Task<Result<SyncCycleReport>> StopWithAsync(SyncError error, CancellationToken cancellationToken)
+    private async Task<Result<SyncCycleReport>> FailCycleAsync(SyncError error, CancellationToken cancellationToken)
     {
-        await RecordAsync(
-            new SyncEventDraft(SyncEventKind.SyncFailed, _config.Branch, error.Message, []),
+        var redacted = error with { Message = RedactRemote(error.Message) };
+        await AnnounceFailure(
+            new SyncEventDraft(SyncEventKind.SyncFailed, _config.Branch, redacted.Message, []),
+            new SyncNotification.SyncFailed(_time.GetUtcNow(), redacted),
             cancellationToken).ConfigureAwait(false);
-        _bus.Publish(new SyncNotification.SyncFailed(_time.GetUtcNow(), error));
-        return Fail(error);
+        return Fail(redacted);
     }
 
-    private async Task<Result<SyncCycleReport>> StopConflictedAsync(
+    private async Task<Result<SyncCycleReport>> FailConflictedAsync(
         IReadOnlyList<string> conflictedPaths, CancellationToken cancellationToken)
     {
-        await RecordAsync(new SyncEventDraft(
+        await AnnounceFailure(
+            new SyncEventDraft(
                 SyncEventKind.MergeConflicted, _config.Branch, "merge aborted; tree left at pre-merge commit", conflictedPaths),
+            new SyncNotification.MergeConflicted(_time.GetUtcNow(), _config.Branch, conflictedPaths),
             cancellationToken).ConfigureAwait(false);
-        _bus.Publish(new SyncNotification.MergeConflicted(_time.GetUtcNow(), _config.Branch, conflictedPaths));
         return Fail(SyncError.Conflict($"merge conflicted over {string.Join(", ", conflictedPaths)}"));
+    }
+
+    private async Task AnnounceFailure(SyncEventDraft draft, SyncNotification notification, CancellationToken cancellationToken)
+    {
+        if (RepeatsLastFailure(draft))
+        {
+            return;
+        }
+
+        await _history.Append(draft, cancellationToken).ConfigureAwait(false);
+        _bus.Publish(notification);
+    }
+
+    private bool RepeatsLastFailure(SyncEventDraft draft)
+    {
+        if (_lastFailureEvent is { } previous
+            && previous.Kind == draft.Kind
+            && previous.Detail == draft.Detail
+            && previous.Paths.SequenceEqual(draft.Paths))
+        {
+            return true;
+        }
+
+        _lastFailureEvent = draft;
+        return false;
     }
 
     private Result<SyncCycleReport> Fail(SyncError error)
@@ -336,7 +396,8 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
     private Task RecordAsync(SyncEventDraft draft, CancellationToken cancellationToken) =>
         _history.Append(draft, cancellationToken);
 
-    private sealed record BatchStage(string? CommitSha, SyncError? Error);
+    private static string RedactRemote(string message) =>
+        RemoteUrlPattern.Replace(message, "[redacted-remote]");
 
     private abstract record PullStage
     {
