@@ -7,6 +7,8 @@ public sealed class SyncIgnoreRules
 {
     private const string IgnoreFileName = ".syncignore";
 
+    public static IReadOnlyList<string> ConflictCopyPatterns { get; } = ["*(theirs *)*", "*(mine)*"];
+
     private static readonly string[] BuiltIn =
     [
         ".git",
@@ -25,8 +27,7 @@ public sealed class SyncIgnoreRules
         "~$*",
         "*.part",
         "*.crdownload",
-        "*(theirs *)*",
-        "*(mine)*"
+        .. ConflictCopyPatterns
     ];
 
     private readonly List<IgnorePattern> _patterns;

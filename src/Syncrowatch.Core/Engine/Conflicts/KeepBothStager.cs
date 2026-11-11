@@ -16,8 +16,9 @@ public sealed class KeepBothStager(string rootFolder, TimeProvider? timeProvider
 
     public void DiscardCopy(string relativePath)
     {
-        var fullPath = Path.Combine(rootFolder, relativePath.Replace('\\', '/'));
-        if (!Path.GetFullPath(fullPath).StartsWith(Path.GetFullPath(rootFolder), StringComparison.Ordinal))
+        var fullRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(rootFolder));
+        var fullPath = Path.GetFullPath(Path.Combine(rootFolder, relativePath.Replace('\\', '/')));
+        if (!fullPath.StartsWith(fullRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal))
         {
             return;
         }

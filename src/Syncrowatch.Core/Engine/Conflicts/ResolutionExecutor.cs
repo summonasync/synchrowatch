@@ -89,18 +89,18 @@ public sealed class ResolutionExecutor(
         var mergeState = await local.HasMergeInProgress(config.WatchedFolder, cancellationToken).ConfigureAwait(false);
         if (mergeState is Result<bool>.Ok pendingMerge && pendingMerge.Value)
         {
-            var committed = await local.CommitMerge(config.WatchedFolder, config.Identity, ResolutionMessage(record), cancellationToken)
+            var committed = await local.CommitMerge(config.WatchedFolder, config.Identity, AutoConvergedMessage(record), cancellationToken)
                 .ConfigureAwait(false);
             if (committed is Result<string>.Fail commitFailure)
             {
                 return new Result<ConflictResolution>.Fail(commitFailure.Error);
             }
 
-            return await CloseConflictAsync([record], ((Result<string>.Ok)committed).Value, cancellationToken)
+            return await CloseConflictAsync([record], ((Result<string>.Ok)committed).Value, true, cancellationToken)
                 .ConfigureAwait(false);
         }
 
-        return await CloseConflictAsync([record], null, cancellationToken).ConfigureAwait(false);
+        return await CloseConflictAsync([record], null, true, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<Result<Unit>> ApplyOptionAsync(
@@ -118,6 +118,11 @@ public sealed class ResolutionExecutor(
             .ToList();
         if (stages.Count == 0)
         {
+            if (option is not ConflictOption.KeepCopy)
+            {
+                DiscardStaleCopy(record);
+            }
+
             return new Result<Unit>.Ok(Unit.Value);
         }
 
@@ -140,7 +145,12 @@ public sealed class ResolutionExecutor(
                 return await RemoveAsync(folder, record.Path, cancellationToken).ConfigureAwait(false);
             }
 
-            File.WriteAllBytes(WorktreePath(folder, record.Path), OursBytes()!);
+            var written = WriteCanonicalFile(folder, record.Path, OursBytes()!);
+            if (written is Result<Unit>.Fail writeFailure)
+            {
+                return writeFailure;
+            }
+
             if (option == ConflictOption.KeepMine)
             {
                 DiscardStaleCopy(record);
@@ -171,7 +181,12 @@ public sealed class ResolutionExecutor(
             return new Result<Unit>.Fail(((Result<byte[]>.Fail)theirsContent).Error);
         }
 
-        File.WriteAllBytes(WorktreePath(folder, record.Path), theirsRead.Value);
+        var stagedTheirs = WriteCanonicalFile(folder, record.Path, theirsRead.Value);
+        if (stagedTheirs is Result<Unit>.Fail theirsWriteFailure)
+        {
+            return theirsWriteFailure;
+        }
+
         DiscardStaleCopy(record);
         return await StageAsync(folder, record.Path, cancellationToken).ConfigureAwait(false);
     }
@@ -209,12 +224,12 @@ public sealed class ResolutionExecutor(
         var toClose = ((Result<IReadOnlyList<ConflictRecord>>.Ok)staged).Value
             .Where(candidate => candidate.Status == ConflictRecordStatus.Staged)
             .ToList();
-        return await CloseConflictAsync(toClose, ((Result<string>.Ok)committed).Value, cancellationToken)
+        return await CloseConflictAsync(toClose, ((Result<string>.Ok)committed).Value, false, cancellationToken)
             .ConfigureAwait(false);
     }
 
     private async Task<Result<ConflictResolution>> CloseConflictAsync(
-        IReadOnlyList<ConflictRecord> records, string? commitSha, CancellationToken cancellationToken)
+        IReadOnlyList<ConflictRecord> records, string? commitSha, bool autoConverged, CancellationToken cancellationToken)
     {
         var stamp = _time.GetUtcNow();
         foreach (var record in records)
@@ -222,6 +237,7 @@ public sealed class ResolutionExecutor(
             var closed = record with
             {
                 Status = ConflictRecordStatus.Resolved,
+                AutoConverged = autoConverged,
                 ResolvedUtc = commitSha is null ? record.ResolvedUtc ?? stamp : stamp,
                 CommitSha = commitSha ?? record.CommitSha
             };
@@ -232,8 +248,11 @@ public sealed class ResolutionExecutor(
             }
         }
 
-        return new Result<ConflictResolution>.Ok(
-            new ConflictResolution(records.Select(record => record.Path).ToList(), commitSha, []));
+        return new Result<ConflictResolution>.Ok(new ConflictResolution(
+            records.Select(record => record.Path).ToList(), commitSha, [])
+        {
+            AutoConverged = autoConverged
+        });
     }
 
     private async Task<Result<byte[]>> ReadBlobAsync(string folder, string blobSha, CancellationToken cancellationToken)
@@ -272,6 +291,24 @@ public sealed class ResolutionExecutor(
 
     private static string WorktreePath(string folder, string relativePath) =>
         Path.Combine(folder, relativePath.Replace('\\', '/'));
+
+    private static Result<Unit> WriteCanonicalFile(string folder, string relativePath, byte[] content)
+    {
+        try
+        {
+            var fullPath = WorktreePath(folder, relativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+            File.WriteAllBytes(fullPath, content);
+            return new Result<Unit>.Ok(Unit.Value);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return new Result<Unit>.Fail(new SyncError("unavailable", $"resolved file '{relativePath}' could not be written"));
+        }
+    }
+
+    private static string AutoConvergedMessage(ConflictRecord record) =>
+        $"auto-converged: incoming already contained the change in {record.Path}";
 
     private void DiscardStaleCopy(ConflictRecord record)
     {

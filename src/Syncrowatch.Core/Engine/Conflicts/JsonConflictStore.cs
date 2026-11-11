@@ -14,7 +14,7 @@ public sealed class JsonConflictStore : IConflictStore
     };
 
     private readonly string _filePath;
-    private readonly object _gate = new();
+    private readonly SemaphoreSlim _gate = new(1, 1);
     private List<ConflictRecord> _records;
 
     public JsonConflictStore(string? directory = null)
@@ -23,33 +23,41 @@ public sealed class JsonConflictStore : IConflictStore
         _records = LoadExisting();
     }
 
-    public Task<Result<IReadOnlyList<ConflictRecord>>> All()
+    public async Task<Result<IReadOnlyList<ConflictRecord>>> All()
     {
-        lock (_gate)
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
         {
-            return Task.FromResult<Result<IReadOnlyList<ConflictRecord>>>(
-                new Result<IReadOnlyList<ConflictRecord>>.Ok([.. _records]));
+            return new Result<IReadOnlyList<ConflictRecord>>.Ok([.. _records]);
+        }
+        finally
+        {
+            _gate.Release();
         }
     }
 
-    public Task<Result<IReadOnlyList<ConflictRecord>>> Pending()
+    public async Task<Result<IReadOnlyList<ConflictRecord>>> Pending()
     {
-        lock (_gate)
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
         {
             var pending = _records
                 .Where(record => record.Status is ConflictRecordStatus.Pending or ConflictRecordStatus.Staged)
                 .OrderBy(record => record.DetectedUtc)
                 .ThenBy(record => record.Path, StringComparer.Ordinal)
                 .ToList();
-            return Task.FromResult<Result<IReadOnlyList<ConflictRecord>>>(
-                new Result<IReadOnlyList<ConflictRecord>>.Ok(pending));
+            return new Result<IReadOnlyList<ConflictRecord>>.Ok(pending);
+        }
+        finally
+        {
+            _gate.Release();
         }
     }
 
     public async Task<Result<Unit>> Save(ConflictRecord record)
     {
-        List<ConflictRecord> snapshot;
-        lock (_gate)
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
         {
             var existing = _records.FindIndex(stored => stored.Path == record.Path);
             if (existing >= 0)
@@ -61,15 +69,17 @@ public sealed class JsonConflictStore : IConflictStore
                 _records.Add(record);
             }
 
-            snapshot = [.. _records];
+            return await PersistAsync([.. _records]).ConfigureAwait(false);
         }
-
-        return await PersistAsync(snapshot).ConfigureAwait(false);
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     private async Task<Result<Unit>> PersistAsync(List<ConflictRecord> snapshot)
     {
-        var tempPath = _filePath + ".tmp";
+        var tempPath = _filePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
@@ -83,7 +93,19 @@ public sealed class JsonConflictStore : IConflictStore
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            TryCleanup(tempPath);
             return new Result<Unit>.Fail(new SyncError("unavailable", "conflict state file could not be written"));
+        }
+    }
+
+    private static void TryCleanup(string tempPath)
+    {
+        try
+        {
+            File.Delete(tempPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
         }
     }
 

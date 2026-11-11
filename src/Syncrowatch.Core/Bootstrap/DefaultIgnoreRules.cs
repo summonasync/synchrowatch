@@ -1,3 +1,5 @@
+using Syncrowatch.Core.Engine;
+
 namespace Syncrowatch.Core.Bootstrap;
 
 public static class DefaultIgnoreRules
@@ -18,6 +20,7 @@ public static class DefaultIgnoreRules
         "*.tmp",
         "~$*",
         "*.part",
-        "*.crdownload"
+        "*.crdownload",
+        .. SyncIgnoreRules.ConflictCopyPatterns
     ];
 }

@@ -74,6 +74,23 @@ public class JsonConflictStoreTests : IDisposable
             .Single().Kind.ShouldBe(ConflictKind.BinaryConflict);
     }
 
+    [Fact]
+    public async Task ConcurrentSaves_SerializePersistAndKeepFileParsable()
+    {
+        var store = new JsonConflictStore(_directory);
+        var saves = Enumerable.Range(0, 24)
+            .Select(index => store.Save(MakeRecord($"parallel-{index}.txt", ConflictRecordStatus.Pending)));
+        await Task.WhenAll(saves);
+
+        var all = await store.All();
+        ((Result<IReadOnlyList<ConflictRecord>>.Ok)all).Value.Count.ShouldBe(24);
+        Directory.GetFiles(_directory, "*.tmp").ShouldBeEmpty();
+
+        var restarted = new JsonConflictStore(_directory);
+        var reloaded = await restarted.All();
+        ((Result<IReadOnlyList<ConflictRecord>>.Ok)reloaded).Value.Count.ShouldBe(24);
+    }
+
     private static ConflictRecord MakeRecord(string path, ConflictRecordStatus status) => new()
     {
         Id = Guid.NewGuid(),

@@ -9,6 +9,7 @@ public sealed record ConflictRecord
     public required DateTimeOffset DetectedUtc { get; init; }
     public required ConflictRecordStatus Status { get; init; }
     public ConflictOption? Option { get; init; }
+    public bool AutoConverged { get; init; }
     public DateTimeOffset? ResolvedUtc { get; init; }
     public string? CommitSha { get; init; }
 }

@@ -14,6 +14,7 @@ namespace Syncrowatch.Tests;
 public sealed class ConflictSandbox : IDisposable
 {
     public const string SharedBase = "shared.txt";
+    public const string ThirdBase = "third.txt";
 
     public ConflictSandbox(string baseFile = "base.txt", string baseContent = "base\n")
     {
@@ -26,6 +27,7 @@ public sealed class ConflictSandbox : IDisposable
         GitCli.ConfigureIdentity(CloneA);
         File.WriteAllText(Path.Combine(CloneA, baseFile), baseContent);
         File.WriteAllText(Path.Combine(CloneA, SharedBase), "base shared content\n");
+        File.WriteAllText(Path.Combine(CloneA, ThirdBase), "base third content\n");
         GitCli.CommitAll(CloneA, "base");
         GitCli.Push(CloneA, Bare, "main");
         GitCli.Ensure(Root, "clone", Bare, CloneB);

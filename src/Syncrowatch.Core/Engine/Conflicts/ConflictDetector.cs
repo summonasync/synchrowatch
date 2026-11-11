@@ -10,7 +10,7 @@ public sealed class ConflictDetector(
     IConflictStore store,
     TimeProvider? timeProvider = null)
 {
-    private static readonly IReadOnlyList<string> CopyExclusions = ["*(theirs *)*", "*(mine)*"];
+    private static readonly IReadOnlyList<string> CopyExclusions = SyncIgnoreRules.ConflictCopyPatterns;
 
     private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
 

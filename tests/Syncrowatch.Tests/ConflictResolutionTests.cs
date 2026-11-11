@@ -221,6 +221,98 @@ public sealed class ConflictResolutionTests : IDisposable
         outcome.ShouldBeOfType<Result<ConflictResolution>.Fail>().Error.Code.ShouldBe("not_found");
     }
 
+    [Fact]
+    public async Task CleanReMerge_AutoConverged_CommitsDistinctOutcomeAndKeepsCopy()
+    {
+        await PrepareTextConflict();
+        GitCli.Ensure(_sandbox.CloneA, "revert", "--no-edit", "HEAD");
+        GitCli.Push(_sandbox.CloneA, _sandbox.Bare, "main");
+        GitCli.Ensure(_sandbox.CloneB, "fetch", "origin", "main");
+
+        var outcome = await ResolveAsync(Shared, ConflictOption.KeepMine);
+        var resolution = outcome.ShouldBeOfType<Result<ConflictResolution>.Ok>().Value;
+
+        resolution.AutoConverged.ShouldBeTrue();
+        resolution.CommitSha.ShouldNotBeNull();
+        GitCli.Run(_sandbox.CloneB, "log", "-1", "--pretty=%s").Output.Trim()
+            .ShouldBe($"auto-converged: incoming already contained the change in {Shared}");
+        GitCli.Run(_sandbox.CloneB, "log", "-1", "--pretty=%p").Output.Trim().Split(' ').Length.ShouldBe(2);
+        var records = ((Result<IReadOnlyList<ConflictRecord>>.Ok)(await _sandbox.StoreFor(_sandbox.CloneB).All())).Value;
+        records.Single().AutoConverged.ShouldBeTrue();
+        records.Single().Option.ShouldBeNull();
+        records.Single().Status.ShouldBe(ConflictRecordStatus.Resolved);
+        _sandbox.ConflictCopiesOf(_sandbox.CloneB, Shared).ShouldHaveSingleItem();
+        File.ReadAllText(Path.Combine(_sandbox.CloneB, Shared)).ShouldBe(ContentB);
+        MergeHeadPresent().ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task VanishedStages_KeepMine_DiscardsStaleDetectionCopy()
+    {
+        var sandbox = _sandbox;
+        var loopA = sandbox.LoopFor(sandbox.CloneA);
+        await sandbox.EditAndSync(sandbox.CloneA, loopA, Shared, "shared-A\n");
+        await sandbox.EditAndSync(sandbox.CloneA, loopA, "base.txt", "base-A\n");
+        await sandbox.EditAndSync(sandbox.CloneA, loopA, "third.txt", "third-A\n");
+        File.WriteAllText(Path.Combine(sandbox.CloneB, Shared), "shared-B\n");
+        File.WriteAllText(Path.Combine(sandbox.CloneB, "base.txt"), "base-B\n");
+        File.WriteAllText(Path.Combine(sandbox.CloneB, "third.txt"), "third-B\n");
+        var loopB = sandbox.LoopFor(sandbox.CloneB);
+        loopB.AcceptBatch([Shared, "base.txt", "third.txt"]);
+        (await loopB.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Fail>();
+        await sandbox.DetectorFor(sandbox.CloneB)
+            .HandleConflicted([Shared, "base.txt", "third.txt"], CancellationToken.None);
+        var baseCopy = sandbox.ConflictCopiesOf(sandbox.CloneB, "base.txt").Single();
+
+        File.WriteAllText(Path.Combine(sandbox.CloneA, "base.txt"), "base\n");
+        loopA.AcceptBatch(["base.txt"]);
+        (await loopA.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
+        (await loopB.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Fail>();
+
+        var executor = sandbox.ExecutorFor(sandbox.CloneB);
+        var first = (await executor.Resolve(Shared, ConflictOption.KeepMine, CancellationToken.None))
+            .ShouldBeOfType<Result<ConflictResolution>.Ok>().Value;
+        first.CommitSha.ShouldBeNull();
+        first.RemainingPaths.ShouldBe(["third.txt"]);
+
+        var vanished = (await executor.Resolve("base.txt", ConflictOption.KeepMine, CancellationToken.None))
+            .ShouldBeOfType<Result<ConflictResolution>.Ok>().Value;
+        vanished.CommitSha.ShouldBeNull();
+        File.Exists(Path.Combine(sandbox.CloneB, baseCopy)).ShouldBeFalse();
+
+        var final = (await executor.Resolve("third.txt", ConflictOption.KeepMine, CancellationToken.None))
+            .ShouldBeOfType<Result<ConflictResolution>.Ok>().Value;
+        final.CommitSha.ShouldNotBeNull();
+        MergeHeadPresentIn(sandbox.CloneB).ShouldBeFalse();
+        sandbox.ConflictCopiesOf(sandbox.CloneB, Shared).ShouldBeEmpty();
+        sandbox.ConflictCopiesOf(sandbox.CloneB, "third.txt").ShouldBeEmpty();
+        File.ReadAllText(Path.Combine(sandbox.CloneB, Shared)).ShouldBe("shared-B\n");
+        File.ReadAllText(Path.Combine(sandbox.CloneB, "third.txt")).ShouldBe("third-B\n");
+    }
+
+    [Fact]
+    public async Task MirroredDirection_ResolvingCloneA_ConvergesWithCloneB()
+    {
+        var loopB = _sandbox.LoopFor(_sandbox.CloneB);
+        await _sandbox.EditAndSync(_sandbox.CloneB, loopB, Shared, ContentB);
+        File.WriteAllText(Path.Combine(_sandbox.CloneA, Shared), ContentA);
+        var loopA = _sandbox.LoopFor(_sandbox.CloneA);
+        loopA.AcceptBatch([Shared]);
+        (await loopA.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Fail>();
+        (await _sandbox.DetectorFor(_sandbox.CloneA).HandleConflicted([Shared], CancellationToken.None))
+            .ShouldBeOfType<Result<IReadOnlyList<ConflictItem>>.Ok>().Value.Count.ShouldBe(1);
+
+        var outcome = await _sandbox.ExecutorFor(_sandbox.CloneA).Resolve(Shared, ConflictOption.TakeTheirs, CancellationToken.None);
+        outcome.ShouldBeOfType<Result<ConflictResolution>.Ok>().Value.CommitSha.ShouldNotBeNull();
+
+        (await loopA.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
+        (await loopB.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
+        GitCli.Head(_sandbox.CloneA).ShouldBe(GitCli.Head(_sandbox.CloneB));
+        File.ReadAllText(Path.Combine(_sandbox.CloneA, Shared)).ShouldBe(ContentB);
+        File.ReadAllText(Path.Combine(_sandbox.CloneA, "shared (mine).txt")).ShouldBe(ContentA);
+        GitCli.Run(_sandbox.CloneA, "status", "--porcelain").Output.Trim().ShouldBeEmpty();
+    }
+
     public void Dispose() => _sandbox.Dispose();
 
     private async Task<ConflictDetector> PrepareTextConflict()
@@ -236,9 +328,11 @@ public sealed class ConflictResolutionTests : IDisposable
     private Task<Result<ConflictResolution>> ResolveAsync(string path, ConflictOption option) =>
         _sandbox.ExecutorFor(_sandbox.CloneB).Resolve(path, option, CancellationToken.None);
 
-    private bool MergeHeadPresent()
+    private bool MergeHeadPresent() => MergeHeadPresentIn(_sandbox.CloneB);
+
+    private static bool MergeHeadPresentIn(string clone)
     {
-        var (exitCode, _) = GitCli.Run(_sandbox.CloneB, "rev-parse", "-q", "--verify", "MERGE_HEAD");
+        var (exitCode, _) = GitCli.Run(clone, "rev-parse", "-q", "--verify", "MERGE_HEAD");
         return exitCode == 0;
     }
 }

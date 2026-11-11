@@ -66,6 +66,23 @@ public class KeepBothStagerTests : IDisposable
         File.Exists(Path.Combine(Path.GetDirectoryName(_root)!, "outside.txt")).ShouldBeFalse();
     }
 
+    [Fact]
+    public void DiscardCopy_NeverTouchesSiblingSharingPathPrefix()
+    {
+        var parent = TempDir.Create();
+        var root = Path.Combine(parent, "repo");
+        var sibling = Path.Combine(parent, "repo-sibling");
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(sibling);
+        File.WriteAllText(Path.Combine(sibling, "secret.txt"), "keep");
+        var stager = new KeepBothStager(root);
+
+        stager.DiscardCopy("../repo-sibling/secret.txt");
+
+        File.Exists(Path.Combine(sibling, "secret.txt")).ShouldBeTrue();
+        Directory.Delete(parent, true);
+    }
+
     public void Dispose() => Directory.Delete(_root, true);
 
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider

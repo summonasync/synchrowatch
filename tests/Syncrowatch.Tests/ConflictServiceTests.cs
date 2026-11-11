@@ -1,6 +1,8 @@
 using Shouldly;
 using Synchro.Core;
+using Syncrowatch.Core;
 using Syncrowatch.Core.Engine.Conflicts;
+using Syncrowatch.Core.History;
 using Xunit;
 
 namespace Syncrowatch.Tests;
@@ -52,6 +54,33 @@ public sealed class ConflictServiceTests : IDisposable
         outcome.ShouldBeOfType<Result<ConflictResolution>.Ok>().Value.CommitSha.ShouldNotBeNull();
         var closed = await new JsonConflictStore(storeDirectory).Pending();
         ((Result<IReadOnlyList<ConflictRecord>>.Ok)closed).Value.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task DetectionFailure_PublishesSyncFailedAndHistoryEntry()
+    {
+        var history = new JsonSyncEventStore(Path.Combine(_sandbox.Root, "history-broken"));
+        var brokenConfig = _sandbox.ConfigFor(_sandbox.CloneB) with
+        {
+            WatchedFolder = Path.Combine(_sandbox.Root, "missing-folder")
+        };
+        using var service = new ConflictService(
+            brokenConfig, _sandbox.LocalGit(), _sandbox.StoreFor(_sandbox.CloneB), _sandbox.Bus, history);
+
+        _sandbox.Bus.Publish(new SyncNotification.MergeConflicted(DateTimeOffset.UtcNow, "main", [Shared]));
+
+        var events = await WaitForAsync(
+            async () =>
+            {
+                var outcome = await history.Query(new HistoryQuery { Limit = 10 }, CancellationToken.None);
+                var found = ((Result<IReadOnlyList<SyncEvent>>.Ok)outcome).Value;
+                return found.Count > 0 ? found : null;
+            },
+            TimeSpan.FromSeconds(10));
+
+        events.Single(@event => @event.Kind == SyncEventKind.SyncFailed).Paths.ShouldBe([Shared]);
+        _sandbox.Notifications.OfType<SyncNotification.SyncFailed>()
+            .Single().Error.Code.ShouldBe("conflict_detection_failed");
     }
 
     [Fact]
