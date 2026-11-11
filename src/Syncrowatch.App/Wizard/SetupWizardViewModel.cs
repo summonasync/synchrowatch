@@ -29,6 +29,7 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
     private string _identityEmail = CommitIdentity.Default.Email;
     private bool _repoValidated;
     private bool _tokenStored;
+    private bool _bootstrapCompleted;
     private bool _busy;
     private string? _errorMessage;
     private string? _progress;
@@ -48,18 +49,18 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
         _credentials = credentials;
         _folderPicker = folderPicker;
 
-        ContinueCommand = new AsyncCommand(ContinueAsync, CanLeaveCurrentStep);
-        ValidateRepositoryCommand = new AsyncCommand(ValidateRepositoryAsync, () => IsRepositoryStep && !IsBusy);
-        BrowseFolderCommand = new AsyncCommand(BrowseFolderAsync, () => IsFolderStep && !IsBusy);
-        ChooseRepoWinsCommand = new AsyncCommand(() => ChooseAsync(BootstrapDirection.RepoWins), ChoicePending);
-        ChooseFolderWinsCommand = new AsyncCommand(() => ChooseAsync(BootstrapDirection.FolderWins), ChoicePending);
-        FinishCommand = new AsyncCommand(FinishAsync, () => IsBootstrapStep && CanFinish && !IsBusy);
-        CancelCommand = new AsyncCommand(CancelAsync, () => IsBootstrapStep && !IsBusy);
+        ContinueCommand = new AsyncCommand(ContinueAsync, CanLeaveCurrentStep, HandleCommandFailure);
+        ValidateRepositoryCommand = new AsyncCommand(ValidateRepositoryAsync, () => IsRepositoryStep && !IsBusy, HandleCommandFailure);
+        BrowseFolderCommand = new AsyncCommand(BrowseFolderAsync, () => IsFolderStep && !IsBusy, HandleCommandFailure);
+        ChooseRepoWinsCommand = new AsyncCommand(() => ChooseAsync(BootstrapDirection.RepoWins), ChoicePending, HandleCommandFailure);
+        ChooseFolderWinsCommand = new AsyncCommand(() => ChooseAsync(BootstrapDirection.FolderWins), ChoicePending, HandleCommandFailure);
+        FinishCommand = new AsyncCommand(FinishAsync, () => IsBootstrapStep && CanFinish && !IsBusy, HandleCommandFailure);
+        CancelCommand = new AsyncCommand(CancelAsync, () => IsBootstrapStep && !IsBusy, HandleCommandFailure);
         CloseCommand = new AsyncCommand(() =>
         {
             CloseRequested?.Invoke(this, EventArgs.Empty);
             return Task.CompletedTask;
-        }, () => IsCompleted);
+        }, () => IsCompleted, HandleCommandFailure);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -211,6 +212,8 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
 
     public bool CanFinish => _plan is BootstrapPlan.CheckoutRemote or BootstrapPlan.PublishFolder;
 
+    public bool RequiresDismissalCleanup => _tokenStored && !_bootstrapCompleted;
+
     public async Task ContinueAsync()
     {
         switch (_step)
@@ -314,13 +317,41 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
 
     public async Task CancelAsync()
     {
-        if (_tokenStored)
+        if (!await RemoveWizardTokenAsync().ConfigureAwait(true))
         {
-            _tokenStored = false;
-            await _credentials.Delete(CancellationToken.None).ConfigureAwait(true);
+            return;
         }
 
         CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task<bool> ConfirmDismissalAsync() =>
+        !RequiresDismissalCleanup || await RemoveWizardTokenAsync().ConfigureAwait(true);
+
+    private async Task<bool> RemoveWizardTokenAsync()
+    {
+        if (!_tokenStored)
+        {
+            return true;
+        }
+
+        var deleted = await _credentials.Delete(CancellationToken.None).ConfigureAwait(true);
+        if (deleted is Result<Unit>.Fail failure)
+        {
+            ErrorMessage = failure.Error.Message;
+            return false;
+        }
+
+        _tokenStored = false;
+        Notify(nameof(RequiresDismissalCleanup));
+        return true;
+    }
+
+    private void HandleCommandFailure(Exception exception)
+    {
+        IsBusy = false;
+        Progress = null;
+        ErrorMessage = $"sync setup stopped unexpectedly: {exception.Message}";
     }
 
     private async Task<bool> StoreTokenAsync()
@@ -409,6 +440,7 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
         ErrorMessage = null;
         _plan = null;
         PlanSummary = null;
+        _bootstrapCompleted = true;
         MoveTo(WizardStep.Completed);
     }
 

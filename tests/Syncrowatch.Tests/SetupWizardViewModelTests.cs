@@ -130,6 +130,94 @@ public class SetupWizardViewModelTests
     }
 
     [Fact]
+    public async Task Dismissal_AfterTokenPage_DeletesStoredToken()
+    {
+        var harness = new Harness();
+        var viewModel = harness.ViewModel;
+        viewModel.AccessToken = Token;
+        await viewModel.ContinueAsync();
+
+        viewModel.RequiresDismissalCleanup.ShouldBeTrue();
+
+        var closable = await viewModel.ConfirmDismissalAsync();
+
+        closable.ShouldBeTrue();
+        viewModel.RequiresDismissalCleanup.ShouldBeFalse();
+        await harness.Credentials.Received(1).Delete(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Dismissal_AfterFinishedBootstrap_KeepsToken()
+    {
+        var harness = new Harness();
+        await ReachBootstrapAsync(harness, new Result<BootstrapPlan>.Ok(new BootstrapPlan.PublishFolder()));
+        await harness.ViewModel.FinishAsync();
+        harness.ViewModel.Step.ShouldBe(WizardStep.Completed);
+
+        harness.ViewModel.RequiresDismissalCleanup.ShouldBeFalse();
+
+        var closable = await harness.ViewModel.ConfirmDismissalAsync();
+
+        closable.ShouldBeTrue();
+        await harness.Credentials.DidNotReceiveWithAnyArgs().Delete(default);
+    }
+
+    [Fact]
+    public async Task Dismissal_OnFirstStep_NeedsNoCleanupCall()
+    {
+        var harness = new Harness();
+        var viewModel = harness.ViewModel;
+
+        viewModel.RequiresDismissalCleanup.ShouldBeFalse();
+
+        var closable = await viewModel.ConfirmDismissalAsync();
+
+        closable.ShouldBeTrue();
+        harness.Credentials.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Cancel_WhenDeleteFails_SurfacesErrorAndStaysOpen()
+    {
+        var harness = new Harness();
+        harness.Credentials.Delete(Arg.Any<CancellationToken>())
+            .Returns(new Result<Unit>.Fail(new SyncError("unavailable", "credential file could not be removed")));
+        var viewModel = harness.ViewModel;
+        viewModel.AccessToken = Token;
+        await viewModel.ContinueAsync();
+        viewModel.RemoteUrl = RepoUrl;
+        var closed = false;
+        viewModel.CloseRequested += (_, _) => closed = true;
+
+        await viewModel.CancelAsync();
+
+        closed.ShouldBeFalse();
+        viewModel.HasError.ShouldBeTrue();
+        viewModel.ErrorMessage.ShouldNotBeNull().ShouldContain("credential file");
+        await harness.Credentials.Received(1).Delete(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Browse_PickerExplodes_SurfacesTypedErrorAndReleasesBusy()
+    {
+        var harness = new Harness();
+        var viewModel = harness.ViewModel;
+        harness.FolderPicker.PickAsync()
+            .Returns(Task.FromException<string?>(new InvalidOperationException("folder probe exploded")));
+        viewModel.AccessToken = Token;
+        await viewModel.ContinueAsync();
+        viewModel.RemoteUrl = RepoUrl;
+        await viewModel.ValidateRepositoryAsync();
+        await viewModel.ContinueAsync();
+        viewModel.Step.ShouldBe(WizardStep.Folder);
+
+        viewModel.BrowseFolderCommand.Execute(null);
+
+        viewModel.ErrorMessage.ShouldNotBeNull().ShouldContain("folder probe exploded");
+        viewModel.IsBusy.ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task Cancel_WithPendingChoice_PersistsNothingAndExecutesNothing()
     {
         var harness = new Harness();
