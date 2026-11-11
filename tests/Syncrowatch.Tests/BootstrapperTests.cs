@@ -9,6 +9,7 @@ using Xunit;
 
 namespace Syncrowatch.Tests;
 
+[Collection("git-config-sandbox")]
 public class BootstrapperTests
 {
     private const string StandInUrl = "https://syncrowatch.test/stand-in.git";

@@ -3,6 +3,7 @@ using Xunit;
 
 namespace Syncrowatch.Tests;
 
+[Collection("git-config-sandbox")]
 public class GitConfigSandboxTests
 {
     [Fact]

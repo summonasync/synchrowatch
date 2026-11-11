@@ -8,6 +8,7 @@ using Xunit;
 
 namespace Syncrowatch.Tests;
 
+[Collection("git-config-sandbox")]
 public class GitHubRepositoryTests
 {
     private const string DummyToken = "ghp_roundtrip_dummy_5f4e3d2c";

@@ -3,6 +3,7 @@ using Syncrowatch.Core;
 using Syncrowatch.Core.Bootstrap;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.Transport;
+using Syncrowatch.App.Wizard;
 
 namespace Syncrowatch.App;
 
@@ -23,6 +24,7 @@ public static class CompositionRoot
                 config,
                 new GitHubRepository(config, credentials, new GitProcess()),
                 new GitLocal(new GitProcess())));
+        services.AddTransient(sp => new SetupWizardWindow(sp));
         return services.BuildServiceProvider();
     }
 }
