@@ -47,15 +47,15 @@ public class GitArgumentGuardsTests
     [InlineData("-main")]
     [InlineData("feature:next")]
     [InlineData("  ")]
-    public void Branch_RejectsUnusableRefNames(string branch)
+    public void RefName_RejectsUnusableNames(string branch)
     {
-        Should.Throw<GitOperationException>(() => GitArgumentGuards.Branch(branch));
+        Should.Throw<GitOperationException>(() => GitArgumentGuards.RefName(branch));
     }
 
     [Fact]
-    public void Branch_AcceptsPlainName()
+    public void RefName_AcceptsPlainName()
     {
-        GitArgumentGuards.Branch("feature/next").ShouldBe("feature/next");
+        GitArgumentGuards.RefName("feature/next").ShouldBe("feature/next");
     }
 
     [Theory]
@@ -71,5 +71,25 @@ public class GitArgumentGuardsTests
     public void Sha_AcceptsHexadecimalObjectId()
     {
         GitArgumentGuards.Sha("a1b2c3d4e5f6789012345678901234567890abcd").ShouldBe("a1b2c3d4e5f6789012345678901234567890abcd");
+    }
+
+    [Fact]
+    public void Sha_NullValue_IsTypedRejection()
+    {
+        Should.Throw<GitOperationException>(() => GitArgumentGuards.Sha(null!));
+    }
+
+    [Theory]
+    [InlineData("--unset")]
+    [InlineData("-global")]
+    public void ConfigValue_RejectsLeadingDashValues(string value)
+    {
+        Should.Throw<GitOperationException>(() => GitArgumentGuards.ConfigValue(value, "identity name"));
+    }
+
+    [Fact]
+    public void ConfigValue_RejectsControlCharacters()
+    {
+        Should.Throw<GitOperationException>(() => GitArgumentGuards.ConfigValue("bad\n[alias]x", "identity name"));
     }
 }

@@ -30,7 +30,7 @@ public class BatchCommitterTests
     public async Task CommitBatch_EmptyBatch_FailsWithoutInvocations()
     {
         var runner = new FakeGitRunner();
-        var committer = new BatchCommitter(Config(), new LocalRepoOps(runner));
+        var committer = new BatchCommitter(Config(), new GitLocal(runner));
 
         var outcome = await committer.CommitBatch([], CancellationToken.None);
 
@@ -42,7 +42,7 @@ public class BatchCommitterTests
     public async Task CommitBatch_StagesThenCommitsExactlyOnce()
     {
         var runner = ShaRunner();
-        var committer = new BatchCommitter(Config(), new LocalRepoOps(runner));
+        var committer = new BatchCommitter(Config(), new GitLocal(runner));
 
         var outcome = await committer.CommitBatch(["a.txt", "b.txt"], CancellationToken.None);
 
@@ -77,7 +77,7 @@ public class BatchCommitterTests
 
             return new GitCommandResult(0, string.Empty, string.Empty);
         });
-        var committer = new BatchCommitter(Config(), new LocalRepoOps(runner));
+        var committer = new BatchCommitter(Config(), new GitLocal(runner));
 
         var outcome = await committer.CommitBatch(["good.txt", "-poison.txt"], CancellationToken.None);
 
@@ -109,7 +109,7 @@ public class BatchCommitterTests
 
             return new GitCommandResult(0, string.Empty, string.Empty);
         });
-        var committer = new BatchCommitter(Config(), new LocalRepoOps(runner));
+        var committer = new BatchCommitter(Config(), new GitLocal(runner));
 
         var first = await committer.CommitBatch(["notes.txt", "-poison.txt"], CancellationToken.None);
         var second = await committer.CommitBatch(["journal.txt", "-poison.txt"], CancellationToken.None);
@@ -128,7 +128,7 @@ public class BatchCommitterTests
     public async Task CommitBatch_SinglePath_NamesTheFileInMessage()
     {
         var runner = ShaRunner();
-        var committer = new BatchCommitter(Config(), new LocalRepoOps(runner));
+        var committer = new BatchCommitter(Config(), new GitLocal(runner));
 
         var outcome = await committer.CommitBatch(["notes/ideas.md"], CancellationToken.None);
 
@@ -143,7 +143,7 @@ public class BatchCommitterTests
         var runner = new FakeGitRunner(invocation => invocation.Arguments[0] == "add"
             ? new GitCommandResult(128, string.Empty, "fatal: index file corrupt")
             : new GitCommandResult(0, string.Empty, string.Empty));
-        var committer = new BatchCommitter(Config(), new LocalRepoOps(runner));
+        var committer = new BatchCommitter(Config(), new GitLocal(runner));
 
         var outcome = await committer.CommitBatch(["a.txt"], CancellationToken.None);
 
@@ -155,7 +155,7 @@ public class BatchCommitterTests
     public async Task CommitBatch_UsesIdentityFromConfig()
     {
         var runner = ShaRunner();
-        var committer = new BatchCommitter(Config(), new LocalRepoOps(runner));
+        var committer = new BatchCommitter(Config(), new GitLocal(runner));
 
         await committer.CommitBatch(["a.txt"], CancellationToken.None);
 

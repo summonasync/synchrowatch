@@ -206,6 +206,30 @@ public class GitLocalTests
     }
 
     [Fact]
+    public async Task ApplyExcludes_PreservesExistingUserExcludes()
+    {
+        var folder = TempDir.Create();
+        try
+        {
+            var excludeFile = Path.Combine(folder, ".git", "info", "exclude");
+            Directory.CreateDirectory(Path.GetDirectoryName(excludeFile)!);
+            File.WriteAllText(excludeFile, "my-notes/\n");
+            var runner = new FakeGitRunner(invocation => invocation.Arguments.Contains("rev-parse")
+                ? new GitCommandResult(0, ".git/info/exclude\n", string.Empty)
+                : new GitCommandResult(0, string.Empty, string.Empty));
+
+            var outcome = await new GitLocal(runner).ApplyExcludes(folder, ["bin/", "my-notes/", "*.tmp"], CancellationToken.None);
+
+            outcome.ShouldBeOfType<Result<Unit>.Ok>();
+            File.ReadAllText(excludeFile).ShouldBe("my-notes/\nbin/\n*.tmp\n");
+        }
+        finally
+        {
+            Directory.Delete(folder, true);
+        }
+    }
+
+    [Fact]
     public async Task Commit_BlankMessage_RejectedBeforeAnyGitCall()
     {
         var runner = new FakeGitRunner();

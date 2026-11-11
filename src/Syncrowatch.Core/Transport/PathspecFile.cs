@@ -1,4 +1,4 @@
-namespace Syncrowatch.Core.Engine;
+namespace Syncrowatch.Core.Transport;
 
 public sealed class PathspecFile : IDisposable
 {

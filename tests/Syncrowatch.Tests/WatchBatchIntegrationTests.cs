@@ -80,7 +80,7 @@ public sealed class WatchBatchIntegrationTests : IDisposable
         BootstrapRepository();
         File.WriteAllText(Path.Combine(_root, "data[1].txt"), "bracketed");
         File.WriteAllText(Path.Combine(_root, "data1.txt"), "plain");
-        var committer = new BatchCommitter(BuildConfig(), new LocalRepoOps(new GitProcess()));
+        var committer = new BatchCommitter(BuildConfig(), new GitLocal(new GitProcess()));
 
         var outcome = await committer.CommitBatch(["data[1].txt"], CancellationToken.None);
 
@@ -97,7 +97,7 @@ public sealed class WatchBatchIntegrationTests : IDisposable
         var time = new FakeTimeProvider();
         var watcher = new FolderWatcher(_root);
         var batcher = new ChangeBatcher(_root, Debounce, SyncIgnoreRules.ForFolder(_root), time);
-        var committer = new BatchCommitter(BuildConfig(), new LocalRepoOps(new GitProcess()));
+        var committer = new BatchCommitter(BuildConfig(), new GitLocal(new GitProcess()));
         var batches = new List<IReadOnlyList<string>>();
         batcher.BatchReady += batches.Add;
         watcher.ChangeDetected += batcher.Accept;
@@ -127,7 +127,7 @@ public sealed class WatchBatchIntegrationTests : IDisposable
         var time = new FakeTimeProvider();
         var watcher = new FolderWatcher(_root);
         var batcher = new ChangeBatcher(_root, Debounce, SyncIgnoreRules.ForFolder(_root), time);
-        var committer = new BatchCommitter(BuildConfig(), new LocalRepoOps(new GitProcess()));
+        var committer = new BatchCommitter(BuildConfig(), new GitLocal(new GitProcess()));
         var batches = new List<IReadOnlyList<string>>();
         batcher.BatchReady += batches.Add;
         watcher.ChangeDetected += batcher.Accept;

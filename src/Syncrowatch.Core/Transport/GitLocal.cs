@@ -49,7 +49,8 @@ public sealed class GitLocal(IGitRunner runner) : ILocalGit
             var target = Path.IsPathRooted(located) ? located : Path.Combine(folder, located);
             try
             {
-                await File.WriteAllTextAsync(target, string.Join('\n', patterns) + "\n", cancellationToken).ConfigureAwait(false);
+                var merged = MergeExcludes(target, patterns);
+                await File.WriteAllTextAsync(target, merged, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -76,6 +77,60 @@ public sealed class GitLocal(IGitRunner runner) : ILocalGit
 
             GitFailure.EnsureSuccess(await RunAsync(folder, ["commit", "-m", message], cancellationToken).ConfigureAwait(false), "commit");
             return new Result<Unit>.Ok(Unit.Value);
+        });
+
+    public Task<Result<StageOutcome>> StagePaths(string folder, IReadOnlyList<string> relativePaths, CancellationToken cancellationToken) =>
+        TransportResult.Capture<StageOutcome>(async () =>
+        {
+            GuardFolder(folder);
+            var (accepted, skipped) = SplitGuarded(relativePaths);
+            if (accepted.Count == 0)
+            {
+                return new Result<StageOutcome>.Ok(new StageOutcome(skipped));
+            }
+
+            using var pathspec = PathspecFile.Create(accepted);
+            GitFailure.EnsureSuccess(await RunAsync(folder,
+                ["add", "-A", $"--pathspec-from-file={pathspec.FilePath}", "--pathspec-file-nul"], cancellationToken).ConfigureAwait(false), "stage");
+            return new Result<StageOutcome>.Ok(new StageOutcome(skipped));
+        });
+
+    public Task<Result<CommitOutcome>> CommitPaths(
+        string folder, CommitIdentity identity, string message, IReadOnlyList<string> relativePaths, CancellationToken cancellationToken) =>
+        TransportResult.Capture<CommitOutcome>(async () =>
+        {
+            GuardFolder(folder);
+            GitArgumentGuards.ConfigValue(identity.Name, "identity name");
+            GitArgumentGuards.ConfigValue(identity.Email, "identity email");
+            var (accepted, skipped) = SplitGuarded(relativePaths);
+            if (accepted.Count == 0)
+            {
+                return new Result<CommitOutcome>.Ok(new CommitOutcome(skipped, null));
+            }
+
+            using var pathspec = PathspecFile.Create(accepted);
+            var committed = await RunAsync(folder,
+            [
+                "-c", $"user.name={identity.Name}",
+                "-c", $"user.email={identity.Email}",
+                "commit", "-m", message,
+                $"--pathspec-from-file={pathspec.FilePath}",
+                "--pathspec-file-nul"
+            ], cancellationToken).ConfigureAwait(false);
+            if (!committed.Succeeded)
+            {
+                if (IsNothingToCommit(committed))
+                {
+                    return new Result<CommitOutcome>.Ok(new CommitOutcome(skipped, null));
+                }
+
+                await RunAsync(folder, ["reset"], cancellationToken).ConfigureAwait(false);
+                GitFailure.EnsureSuccess(committed, "commit");
+            }
+
+            var head = await RunAsync(folder, ["rev-parse", "HEAD"], cancellationToken).ConfigureAwait(false);
+            GitFailure.EnsureSuccess(head, "read HEAD");
+            return new Result<CommitOutcome>.Ok(new CommitOutcome(skipped, head.StandardOutput.Trim()));
         });
 
     public Task<Result<Unit>> Checkout(string folder, string branch, string startPoint, CancellationToken cancellationToken) =>
@@ -117,6 +172,50 @@ public sealed class GitLocal(IGitRunner runner) : ILocalGit
         runner.RunAsync(new GitInvocation
         {
             Arguments = arguments,
-            WorkingDirectory = folder
+            WorkingDirectory = folder,
+            Environment = GitEnv.PromptDisabled
         }, cancellationToken);
+
+    private static void GuardFolder(string folder)
+    {
+        if (!Directory.Exists(folder))
+        {
+            throw new GitOperationException(SyncError.NotFound($"repository folder '{folder}' does not exist"));
+        }
+    }
+
+    private static (List<string> Accepted, List<string> Skipped) SplitGuarded(IReadOnlyList<string> relativePaths)
+    {
+        var accepted = new List<string>();
+        var skipped = new List<string>();
+        foreach (var relativePath in relativePaths)
+        {
+            try
+            {
+                accepted.Add(GitArgumentGuards.RelativePath(relativePath));
+            }
+            catch (GitOperationException)
+            {
+                skipped.Add(relativePath);
+            }
+        }
+
+        return (accepted, skipped);
+    }
+
+    private static bool IsNothingToCommit(GitCommandResult result)
+    {
+        var output = result.StandardOutput + result.StandardError;
+        return output.Contains("nothing to commit", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("no changes added to commit", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string MergeExcludes(string target, IReadOnlyList<string> patterns)
+    {
+        var existing = File.Exists(target)
+            ? File.ReadAllLines(target).Where(line => line.Trim().Length > 0)
+            : [];
+        var additions = patterns.Where(pattern => !existing.Contains(pattern, StringComparer.Ordinal));
+        return string.Join('\n', existing.Concat(additions)) + "\n";
+    }
 }

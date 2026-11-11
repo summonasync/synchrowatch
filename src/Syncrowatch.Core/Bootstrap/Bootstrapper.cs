@@ -149,24 +149,31 @@ public sealed class Bootstrapper(SyncConfig config, IRemoteRepository remote, IL
     private static int CountLocalFiles(string folder)
     {
         var count = 0;
-        foreach (var entry in Directory.EnumerateFileSystemEntries(folder))
+        try
         {
-            if (Path.GetFileName(entry) is VcsDirectoryName or StateDirectoryName)
+            foreach (var entry in Directory.EnumerateFileSystemEntries(folder))
             {
-                continue;
-            }
+                if (Path.GetFileName(entry) is VcsDirectoryName or StateDirectoryName)
+                {
+                    continue;
+                }
 
-            if (File.Exists(entry))
-            {
-                count++;
-                continue;
-            }
+                if (File.Exists(entry))
+                {
+                    count++;
+                    continue;
+                }
 
-            var attributes = File.GetAttributes(entry);
-            if ((attributes & FileAttributes.ReparsePoint) == 0)
-            {
-                count += CountLocalFiles(entry);
+                var attributes = File.GetAttributes(entry);
+                if ((attributes & FileAttributes.ReparsePoint) == 0)
+                {
+                    count += CountLocalFiles(entry);
+                }
             }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new GitOperationException(new SyncError("unavailable", $"watched folder contents could not be counted in '{folder}'"));
         }
 
         return count;

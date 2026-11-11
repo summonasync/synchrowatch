@@ -13,7 +13,12 @@ public interface ILocalGit
 
     Task<Result<Unit>> StageAll(string folder, CancellationToken cancellationToken);
 
+    Task<Result<StageOutcome>> StagePaths(string folder, IReadOnlyList<string> relativePaths, CancellationToken cancellationToken);
+
     Task<Result<Unit>> Commit(string folder, string message, CancellationToken cancellationToken);
+
+    Task<Result<CommitOutcome>> CommitPaths(
+        string folder, CommitIdentity identity, string message, IReadOnlyList<string> relativePaths, CancellationToken cancellationToken);
 
     Task<Result<Unit>> Checkout(string folder, string branch, string startPoint, CancellationToken cancellationToken);
 

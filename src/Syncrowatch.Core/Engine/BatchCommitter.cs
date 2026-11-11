@@ -1,9 +1,10 @@
 using Synchro.Core;
 using Syncrowatch.Core.Config;
+using Syncrowatch.Core.Transport;
 
 namespace Syncrowatch.Core.Engine;
 
-public sealed class BatchCommitter(SyncConfig config, LocalRepoOps ops)
+public sealed class BatchCommitter(SyncConfig config, ILocalGit local)
 {
     public async Task<Result<CommitOutcome>> CommitBatch(IReadOnlyList<string> relativePaths, CancellationToken cancellationToken)
     {
@@ -12,7 +13,7 @@ public sealed class BatchCommitter(SyncConfig config, LocalRepoOps ops)
             return new Result<CommitOutcome>.Fail(SyncError.Invalid("commit batch is empty"));
         }
 
-        var staged = await ops.Stage(config.WatchedFolder, relativePaths, cancellationToken).ConfigureAwait(false);
+        var staged = await local.StagePaths(config.WatchedFolder, relativePaths, cancellationToken).ConfigureAwait(false);
         if (staged is Result<StageOutcome>.Fail stageFailure)
         {
             return new Result<CommitOutcome>.Fail(stageFailure.Error);
@@ -20,7 +21,7 @@ public sealed class BatchCommitter(SyncConfig config, LocalRepoOps ops)
 
         var skipped = ((Result<StageOutcome>.Ok)staged).Value.SkippedPaths;
         var batched = relativePaths.Where(path => !skipped.Contains(path)).ToArray();
-        return await ops.Commit(config.WatchedFolder, config.Identity, SyncMessage(batched), relativePaths, cancellationToken)
+        return await local.CommitPaths(config.WatchedFolder, config.Identity, SyncMessage(batched), relativePaths, cancellationToken)
             .ConfigureAwait(false);
     }
 
