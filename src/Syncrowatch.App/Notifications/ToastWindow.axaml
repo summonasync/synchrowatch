@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:Syncrowatch.App.Notifications"
+        x:Class="Syncrowatch.App.Notifications.ToastWindow"
+        x:DataType="vm:ToastViewModel"
+        x:CompileBindings="True"
+        Width="340" Height="96"
+        CanResize="False"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        SystemDecorations="None"
+        Topmost="True"
+        Background="#F224292F">
+  <StackPanel Margin="14,10" Spacing="4">
+    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="White" FontSize="13" />
+    <TextBlock Text="{Binding Message}" Foreground="#DDD8D2" FontSize="12" TextWrapping="Wrap" />
+    <TextBlock Text="{Binding Command}"
+               FontFamily="Consolas, DejaVu Sans Mono, monospace"
+               FontSize="11"
+               Foreground="#7FD1B9"
+               TextWrapping="NoWrap"
+               IsVisible="{Binding HasCommand}" />
+  </StackPanel>
+</Window>

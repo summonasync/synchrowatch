@@ -1,0 +1,86 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:Syncrowatch.App.Wizard"
+        x:Class="Syncrowatch.App.Wizard.SetupWizardWindow"
+        x:DataType="vm:SetupWizardViewModel"
+        x:CompileBindings="True"
+        Title="Syncrowatch setup"
+        Width="540" Height="440"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen">
+  <StackPanel Margin="20" Spacing="12">
+    <StackPanel IsVisible="{Binding IsTokenStep}" Spacing="12">
+      <TextBlock Text="GitHub access token" FontSize="18" FontWeight="SemiBold" />
+      <TextBlock TextWrapping="Wrap"
+                 Text="Paste a personal access token with read and write access to the private repository you want to sync. It is stored in your user profile with owner-only permissions." />
+      <TextBox Text="{Binding AccessToken}"
+               PasswordChar="•"
+               Watermark="github personal access token" />
+      <Button Content="Continue" Command="{Binding ContinueCommand}" HorizontalAlignment="Right" />
+    </StackPanel>
+
+    <StackPanel IsVisible="{Binding IsRepositoryStep}" Spacing="12">
+      <TextBlock Text="Private repository" FontSize="18" FontWeight="SemiBold" />
+      <TextBlock TextWrapping="Wrap"
+                 Text="Syncrowatch only syncs private repositories. The url is checked before anything is stored." />
+      <TextBox Text="{Binding RemoteUrl}" Watermark="https://github.com/you/your-repo.git" />
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Content="Validate" Command="{Binding ValidateRepositoryCommand}" />
+        <Button Content="Continue" Command="{Binding ContinueCommand}" />
+      </StackPanel>
+    </StackPanel>
+
+    <StackPanel IsVisible="{Binding IsFolderStep}" Spacing="12">
+      <TextBlock Text="Folder to sync" FontSize="18" FontWeight="SemiBold" />
+      <TextBlock TextWrapping="Wrap"
+                 Text="Pick the folder whose files should follow the repository." />
+      <TextBox Text="{Binding FolderPath}" IsReadOnly="True" />
+      <Button Content="Browse…" Command="{Binding BrowseFolderCommand}" HorizontalAlignment="Left" />
+      <Button Content="Continue" Command="{Binding ContinueCommand}" HorizontalAlignment="Right" />
+    </StackPanel>
+
+    <StackPanel IsVisible="{Binding IsPreferencesStep}" Spacing="12">
+      <TextBlock Text="Sync preferences" FontSize="18" FontWeight="SemiBold" />
+      <RadioButton GroupName="syncMode" Content="Auto — sync runs hands-off" IsChecked="{Binding UseAutoMode}" />
+      <RadioButton GroupName="syncMode" Content="Manual — sync only on explicit action" IsChecked="{Binding UseManualMode}" />
+      <RadioButton GroupName="syncMode" Content="Semi-auto — pulls automatically, push on confirm" IsChecked="{Binding UseSemiAutoMode}" />
+      <TextBox Text="{Binding IdentityName}" Watermark="commit name" />
+      <TextBox Text="{Binding IdentityEmail}" Watermark="commit email" />
+      <Button Content="Continue" Command="{Binding ContinueCommand}" HorizontalAlignment="Right" />
+    </StackPanel>
+
+    <StackPanel IsVisible="{Binding IsBootstrapStep}" Spacing="12">
+      <TextBlock Text="Bootstrap sync" FontSize="18" FontWeight="SemiBold" />
+      <TextBlock TextWrapping="Wrap" Text="{Binding PlanSummary}" />
+      <StackPanel IsVisible="{Binding NeedsChoice}" Spacing="8">
+        <TextBlock TextWrapping="Wrap"
+                   Text="Both sides carry content. Cancelling stops everything: nothing is stored and neither side is touched." />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Content="Repo wins" Command="{Binding ChooseRepoWinsCommand}" />
+          <Button Content="Folder wins" Command="{Binding ChooseFolderWinsCommand}" />
+          <Button Content="Cancel" Command="{Binding CancelCommand}" />
+        </StackPanel>
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Content="Finish" Command="{Binding FinishCommand}" IsVisible="{Binding CanFinish}" />
+        <Button Content="Cancel" Command="{Binding CancelCommand}" IsVisible="{Binding !NeedsChoice}" />
+      </StackPanel>
+    </StackPanel>
+
+    <StackPanel IsVisible="{Binding IsCompleted}" Spacing="12">
+      <TextBlock Text="Sync is live" FontSize="18" FontWeight="SemiBold" />
+      <TextBlock TextWrapping="Wrap"
+                 Text="The folder is bound to the repository. Syncrowatch watches changes from the tray." />
+      <Button Content="Close" Command="{Binding CloseCommand}" HorizontalAlignment="Right" />
+    </StackPanel>
+
+    <TextBlock Margin="0,8,0,0"
+               IsVisible="{Binding HasError}"
+               Foreground="Crimson"
+               TextWrapping="Wrap"
+               Text="{Binding ErrorMessage}" />
+    <TextBlock IsVisible="{Binding IsBusy}"
+               TextWrapping="Wrap"
+               Text="{Binding Progress}" />
+  </StackPanel>
+</Window>
