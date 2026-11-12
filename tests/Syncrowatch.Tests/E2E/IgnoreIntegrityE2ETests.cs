@@ -66,7 +66,7 @@ public sealed class IgnoreIntegrityE2ETests : IDisposable
             File.WriteAllText(Path.Combine(folder, "drafts", "more.txt"), "ignored\n");
             File.WriteAllText(Path.Combine(folder, "vault.key"), "ignored\n");
             File.WriteAllText(Path.Combine(folder, ".DS_Store"), "ignored\n");
-            await SettlePendingAsync(batcher, minimum: 1);
+            await SyncE2EStand.SettleAsync(batcher, minimum: 1);
             time.Advance(TimeSpan.FromSeconds(20));
 
             delivered.ShouldHaveSingleItem().ShouldBe(["notes.md"]);
@@ -143,16 +143,14 @@ public sealed class IgnoreIntegrityE2ETests : IDisposable
         (await loop.SyncOnce(CancellationToken.None))
             .ShouldBeOfType<Result<SyncCycleReport>.Fail>().Error.Code.ShouldBe("conflict");
 
-        await AwaitAsync(async () =>
+        await SyncE2EStand.AwaitAsync(async () =>
         {
             var pending = await conflicts.Pending(CancellationToken.None);
             return pending is Result<IReadOnlyList<Syncrowatch.Core.Engine.Conflicts.PendingConflict>>.Ok ok
                 && ok.Value.Count == 1;
         }, "conflict copy to settle");
 
-        var copyPath = Directory.GetFiles(folder, "readme (theirs *")
-            .Select(Path.GetFileName)
-            .ShouldHaveSingleItem();
+        var copyFile = Directory.GetFiles(folder, "readme (theirs *").ShouldHaveSingleItem();
         GitCli.Run(folder, "status", "--porcelain").Output.Trim().ShouldBeEmpty();
 
         var resolved = await conflicts.Resolve("readme.md", ConflictOption.KeepCopy, CancellationToken.None);
@@ -163,7 +161,7 @@ public sealed class IgnoreIntegrityE2ETests : IDisposable
         GitCli.Run(_bare, "log", "--all", "--name-only", "--format=", "main").Output
             .ShouldNotContain(" (theirs ");
         FilesTracked(_bare).ShouldBe(["readme.md"]);
-        File.ReadAllText(Path.Combine(folder, copyPath)).ShouldBe("peer rewrote the readme\n");
+        File.ReadAllText(copyFile).ShouldBe("peer rewrote the readme\n");
         GitCli.Run(folder, "status", "--porcelain").Output.Trim().ShouldBeEmpty();
     }
 
@@ -216,52 +214,12 @@ public sealed class IgnoreIntegrityE2ETests : IDisposable
             new SyncEventBus());
     }
 
-    private static async Task SettlePendingAsync(ChangeBatcher batcher, int minimum)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (batcher.PendingCount < minimum && DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(25);
-        }
-
-        batcher.PendingCount.ShouldBeGreaterThanOrEqualTo(minimum);
-        var quietSince = DateTime.UtcNow;
-        var lastCount = batcher.PendingCount;
-        while (DateTime.UtcNow - quietSince < TimeSpan.FromMilliseconds(500))
-        {
-            await Task.Delay(50);
-            if (batcher.PendingCount != lastCount)
-            {
-                lastCount = batcher.PendingCount;
-                quietSince = DateTime.UtcNow;
-            }
-        }
-    }
-
     private static IReadOnlyList<string> FilesTracked(string bare) =>
         GitCli.Run(bare, "ls-tree", "--name-only", "-r", "main").Output
             .Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .Select(line => line.Trim())
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToList();
-
-    private static async Task AwaitAsync(Func<Task<bool>> ready, string what)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(15);
-        var satisfied = false;
-        while (DateTime.UtcNow < deadline)
-        {
-            if (await ready().ConfigureAwait(false))
-            {
-                satisfied = true;
-                break;
-            }
-
-            await Task.Delay(25).ConfigureAwait(false);
-        }
-
-        satisfied.ShouldBeTrue(what);
-    }
 
     public void Dispose()
     {

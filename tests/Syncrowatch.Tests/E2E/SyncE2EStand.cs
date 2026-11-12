@@ -144,6 +144,28 @@ public sealed class SyncE2EStand : IDisposable
         satisfied.ShouldBeTrue(what);
     }
 
+    public static async Task SettleAsync(ChangeBatcher batcher, int minimum)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (batcher.PendingCount < minimum && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(25);
+        }
+
+        batcher.PendingCount.ShouldBeGreaterThanOrEqualTo(minimum);
+        var quietSince = DateTime.UtcNow;
+        var lastCount = batcher.PendingCount;
+        while (DateTime.UtcNow - quietSince < TimeSpan.FromMilliseconds(500))
+        {
+            await Task.Delay(50);
+            if (batcher.PendingCount != lastCount)
+            {
+                lastCount = batcher.PendingCount;
+                quietSince = DateTime.UtcNow;
+            }
+        }
+    }
+
     private async Task<SyncConfig> LoadBindingAsync(string clone)
     {
         var loaded = await new JsonSyncConfigStore(DataDirectory).Load(CancellationToken.None);

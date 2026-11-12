@@ -12,6 +12,7 @@ public sealed class BatchCommitE2ETests : IDisposable
     private static readonly TimeSpan Debounce = TimeSpan.FromSeconds(20);
 
     private readonly SyncE2EStand _stand = new();
+    private readonly CancellationTokenSource _lifetime = new();
 
     [Fact]
     public async Task FiveRapidEditsInsideOneDebounceWindow_LandAsExactlyOneCommitOnTheRemote()
@@ -28,7 +29,7 @@ public sealed class BatchCommitE2ETests : IDisposable
             loop.AcceptBatch(deliveredBatch);
         };
         watcher.ChangeDetected += batcher.Accept;
-        watcher.Start(new CancellationTokenSource().Token);
+        watcher.Start(_lifetime.Token);
         try
         {
             for (var edit = 0; edit < 5; edit++)
@@ -36,7 +37,7 @@ public sealed class BatchCommitE2ETests : IDisposable
                 File.WriteAllText(Path.Combine(_stand.CloneA, $"note-{edit}.txt"), $"batch line {edit}");
             }
 
-            await SettleAsync(batcher, expectedPending: 5);
+            await SyncE2EStand.SettleAsync(batcher, minimum: 5);
             time.Advance(Debounce);
 
             loop.PendingBatchCount.ShouldBe(5);
@@ -85,28 +86,6 @@ public sealed class BatchCommitE2ETests : IDisposable
         batcher.Dispose();
     }
 
-    private static async Task SettleAsync(ChangeBatcher batcher, int expectedPending)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (batcher.PendingCount < expectedPending && DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(25);
-        }
-
-        batcher.PendingCount.ShouldBeGreaterThanOrEqualTo(expectedPending);
-        var quietSince = DateTime.UtcNow;
-        var lastCount = batcher.PendingCount;
-        while (DateTime.UtcNow - quietSince < TimeSpan.FromMilliseconds(500))
-        {
-            await Task.Delay(50);
-            if (batcher.PendingCount != lastCount)
-            {
-                lastCount = batcher.PendingCount;
-                quietSince = DateTime.UtcNow;
-            }
-        }
-    }
-
     private int RemoteCommitCount() =>
         int.Parse(GitCli.Run(_stand.Bare, "rev-list", "--count", "main").Output.Trim());
 
@@ -123,5 +102,9 @@ public sealed class BatchCommitE2ETests : IDisposable
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToList();
 
-    public void Dispose() => _stand.Dispose();
+    public void Dispose()
+    {
+        _lifetime.Dispose();
+        _stand.Dispose();
+    }
 }

@@ -2,6 +2,10 @@
 set -euo pipefail
 
 VERSION="${1:?usage: release-syncrowatch.sh <version>}"
+if [[ ! "${VERSION}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "FAIL: version '${VERSION}' may only contain letters, digits, dot, underscore, dash" >&2
+    exit 1
+fi
 CONFIG="${SYNCROWATCH_CONFIG:-Release}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
