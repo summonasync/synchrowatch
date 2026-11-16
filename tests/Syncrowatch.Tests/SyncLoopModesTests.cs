@@ -193,9 +193,40 @@ public sealed class SyncLoopModesTests : IDisposable
         (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
 
         await remote.Received(2).Pull(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await remote.Received(1).Push("main", Arg.Any<CancellationToken>());
         await remote.DidNotReceive().MergeFetchedHead(Arg.Any<CancellationToken>());
         SnapshotNotifications().OfType<SyncNotification.SyncFailed>().ShouldBeEmpty();
         await local.DidNotReceive().CommitPaths(
+            Arg.Any<string>(), Arg.Any<CommitIdentity>(), Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SyncOnce_SemiAuto_ExplicitCycleWithRemoteCaughtUp_ReleasesStagedPushWithoutPushing()
+    {
+        var remote = Substitute.For<IRemoteRepository>();
+        var unchanged = new Result<SyncOutcome>.Ok(new SyncOutcome("main", "sha0", "sha0"));
+        remote.Pull("main", Arg.Any<CancellationToken>())
+            .Returns(unchanged, unchanged, unchanged);
+        remote.Push("main", Arg.Any<CancellationToken>())
+            .Returns(new Result<SyncOutcome>.Ok(new SyncOutcome("main", "remote-sha", "shaHead")));
+        var local = CleanLocal();
+        var time = new FakeTimeProvider();
+        using var loop = BuildLoop(local, time: time, remote: remote, mode: SyncRunMode.SemiAuto);
+        remote.TrackingTip("main", Arg.Any<CancellationToken>())
+            .Returns(
+                new Result<string>.Ok("remote-sha"),
+                new Result<string>.Ok("shaHead"),
+                new Result<string>.Ok("shaHead"));
+
+        await StagePendingPushAsync(loop, time);
+        loop.AcceptBatch(["late.txt"]);
+        (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
+
+        await remote.DidNotReceive().Push("main", Arg.Any<CancellationToken>());
+
+        (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
+        await local.Received(1).CommitPaths(
             Arg.Any<string>(), Arg.Any<CommitIdentity>(), Arg.Any<string>(),
             Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
     }
