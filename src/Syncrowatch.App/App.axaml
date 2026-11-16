@@ -6,6 +6,8 @@
     <FluentTheme />
   </Application.Styles>
   <TrayIcon.Icons>
-    <TrayIcon Icon="avares://syncrowatch/Assets/syncrowatch-tray.png" ToolTipText="Syncrowatch" />
+    <TrayIcons>
+      <TrayIcon Icon="avares://syncrowatch/Assets/syncrowatch-tray.png" ToolTipText="Syncrowatch" />
+    </TrayIcons>
   </TrayIcon.Icons>
 </Application>
