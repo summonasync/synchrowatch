@@ -67,7 +67,7 @@ public sealed class TrayStateTracker : INotifyPropertyChanged, IDisposable
 
                 if (_pushPending)
                 {
-                    notes.Add("push pending confirmation");
+                    notes.Add("push pending");
                 }
 
                 return notes.Count == 0

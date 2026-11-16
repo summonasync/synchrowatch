@@ -61,14 +61,18 @@ Run after every release build from Ubuntu. Total time: about 30 minutes.
 5. After resolving everything, sync both folders once.
    Expected: both folders converge; working trees clean; the history window shows the resolution events.
 
-## 7. Semi-auto hold and sync now (spec AC: semi-auto)
+## 7. Semi-auto detection prompt and sync now (spec AC: semi-auto)
 
-1. Switch the tray mode to semi-auto, make a local edit, let a cycle run.
-   Expected: a push-pending notification appears; the commit exists locally but the repo on github.com does not advance; no confirmation prompt is shown.
-2. Click Sync now in the tray.
-   Expected: the commit lands on github.com; a sync-completed notification follows.
-3. Switch to manual mode and touch a file.
-   Expected: no watcher-driven commits, no pulls and no pushes until Sync now is clicked explicitly.
+1. Switch the tray mode to semi-auto and make a local edit.
+   Expected: within the debounce window (default 20 s) a "Local changes found" dialog appears exactly once with Sync now / Later; the tray tooltip reads "Synchronizing…" only while a sync actually runs.
+2. Choose Later and wait out the debounce window.
+   Expected: the dialog never re-appears for this batch; the change commits locally, the push stages silently — the tray tooltip shows the push pending note and the repo on github.com does not advance; no confirmation prompt is shown anywhere.
+3. Click Sync now in the tray.
+   Expected: the tooltip reads "Synchronizing…" while the cycle runs; afterwards the commit lands on github.com, the pending note clears and a "Sync completed" toast appears.
+4. Make a second local edit and choose Sync now on the detection dialog.
+   Expected: the edit is committed and pushed in one press with no prompt after the dialog itself; a "Sync completed" toast follows if the press actually transferred something (an up-to-date press stays quiet).
+5. Switch to manual mode and touch a file.
+   Expected: no watcher-driven commits, no pulls, no pushes and no detection dialog until Sync now is clicked explicitly.
 
 ## 8. `.syncignore` respected everywhere (spec AC: ignore)
 

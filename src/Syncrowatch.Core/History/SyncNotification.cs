@@ -7,6 +7,8 @@ public abstract record SyncNotification
 {
     public sealed record SyncCompleted(DateTimeOffset OccurredUtc, SyncCycleReport Report) : SyncNotification;
 
+    public sealed record ExplicitSyncCompleted(DateTimeOffset OccurredUtc, SyncCycleReport Report) : SyncNotification;
+
     public sealed record AutoMerged(DateTimeOffset OccurredUtc, string Branch, IReadOnlyList<string> Files) : SyncNotification;
 
     public sealed record MergeConflicted(DateTimeOffset OccurredUtc, string Branch, IReadOnlyList<string> ConflictedPaths) : SyncNotification;

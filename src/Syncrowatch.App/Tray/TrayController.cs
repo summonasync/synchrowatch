@@ -28,6 +28,7 @@ public sealed class TrayController : IDisposable
     private ModeController? _controller;
     private RelayPollDriver _relayDriver;
     private readonly DetectionPromptController _detection;
+    private readonly SyncNowRunner _syncNow;
     private int _disposed;
 
     public TrayController(IServiceProvider services, TrayIcon icon, IClassicDesktopStyleApplicationLifetime desktop)
@@ -37,6 +38,7 @@ public sealed class TrayController : IDisposable
         _desktop = desktop;
         _tracker = services.GetRequiredService<TrayStateTracker>();
         _tracker.PropertyChanged += OnTrayStateChanged;
+        _syncNow = services.GetRequiredService<SyncNowRunner>();
         _services.GetRequiredService<ToastService>();
         _services.GetRequiredService<TrayStateWatcher>();
         _relayDriver = _services.GetRequiredService<RelayPollDriver>();
@@ -141,8 +143,7 @@ public sealed class TrayController : IDisposable
             return;
         }
 
-        _tracker.BeginSync();
-        _tracker.SettleSync(await controller.SyncNowAsync().ConfigureAwait(true));
+        await _syncNow.RunAsync(() => controller.SyncNowAsync(CancellationToken.None)).ConfigureAwait(true);
     }
 
     private async Task ChangeModeAsync(SyncRunMode mode)

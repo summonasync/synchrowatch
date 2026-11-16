@@ -98,7 +98,7 @@ public sealed class TrayStateTrackerTests : IDisposable
         _bus.Publish(new SyncNotification.PushPending(new PendingPush("main", "shaHead", DateTimeOffset.UtcNow)));
 
         _tracker.PushPending.ShouldBeTrue();
-        _tracker.ToolTipText.ShouldBe("Syncrowatch — idle, push pending confirmation");
+        _tracker.ToolTipText.ShouldBe("Syncrowatch — idle, push pending");
 
         _bus.Publish(new SyncNotification.SyncCompleted(DateTimeOffset.UtcNow, Quiet()));
         _tracker.PushPending.ShouldBeFalse();
@@ -112,10 +112,10 @@ public sealed class TrayStateTrackerTests : IDisposable
         _tracker.ToolTipText.ShouldBe("Syncrowatch — idle, paused");
 
         _bus.Publish(new SyncNotification.PushPending(new PendingPush("main", "shaHead", DateTimeOffset.UtcNow)));
-        _tracker.ToolTipText.ShouldBe("Syncrowatch — idle, paused, push pending confirmation");
+        _tracker.ToolTipText.ShouldBe("Syncrowatch — idle, paused, push pending");
 
         _tracker.SetPaused(false);
-        _tracker.ToolTipText.ShouldBe("Syncrowatch — idle, push pending confirmation");
+        _tracker.ToolTipText.ShouldBe("Syncrowatch — idle, push pending");
     }
 
     private static SyncCycleReport Quiet() => new(DateTimeOffset.UtcNow, null, null);

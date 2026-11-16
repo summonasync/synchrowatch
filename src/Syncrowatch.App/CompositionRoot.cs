@@ -46,6 +46,10 @@ public static class CompositionRoot
             sp.GetRequiredService<ISyncEventBus>()));
         services.AddSingleton<RelayPollDriver>();
         services.AddSingleton<TrayStateTracker>();
+        services.AddSingleton(sp => new ExplicitSyncFeedback(sp.GetRequiredService<ISyncEventBus>()));
+        services.AddSingleton(sp => new SyncNowRunner(
+            sp.GetRequiredService<TrayStateTracker>(),
+            sp.GetRequiredService<ExplicitSyncFeedback>()));
         services.AddSingleton<ITrayStateUpdater>(sp => new MarshalledTrayStateUpdater(
             new TrayStateTrackerUpdater(sp.GetRequiredService<TrayStateTracker>())));
         services.AddSingleton<IToastWindowFactory>(new ToastWindowFactory());
