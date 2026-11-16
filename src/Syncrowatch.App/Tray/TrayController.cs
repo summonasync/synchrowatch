@@ -124,7 +124,8 @@ public sealed class TrayController : IDisposable
                 _services.GetRequiredService<Func<SyncConfig, ISyncEngine>>()(config),
                 configStore,
                 _services.GetRequiredService<Func<SyncConfig, IFileWatching>>()(config),
-                _services.GetRequiredService<ISyncEventBus>());
+                _services.GetRequiredService<ISyncEventBus>(),
+                pendingPaths: _services.GetRequiredService<IPendingPathsSource>());
             _controller.PropertyChanged += OnControllerPropertyChanged;
             await _controller.LaunchAsync().ConfigureAwait(true);
             RefreshTray();

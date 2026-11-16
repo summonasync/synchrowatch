@@ -82,7 +82,7 @@ public partial class ToastWindow : Window
 
     private static TimeSpan Hold(ToastKind kind) => kind switch
     {
-        ToastKind.Conflict or ToastKind.Failure => TimeSpan.FromSeconds(8),
+        ToastKind.Conflict or ToastKind.Failure or ToastKind.LinkPending => TimeSpan.FromSeconds(8),
         _ => TimeSpan.FromSeconds(5)
     };
 }
