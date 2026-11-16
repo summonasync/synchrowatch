@@ -163,6 +163,26 @@ public class SetupWizardViewModelTests
     }
 
     [Fact]
+    public async Task Assess_WithPublishablePlan_RaisesFinishCanExecuteChanged()
+    {
+        var harness = new Harness();
+        var raisesWithFinishablePlan = 0;
+        harness.ViewModel.FinishCommand.CanExecuteChanged += (_, _) =>
+        {
+            if (harness.ViewModel.CanFinish)
+            {
+                raisesWithFinishablePlan++;
+            }
+        };
+
+        await ReachBootstrapAsync(harness, new Result<BootstrapPlan>.Ok(new BootstrapPlan.PublishFolder()));
+
+        harness.ViewModel.CanFinish.ShouldBeTrue();
+        raisesWithFinishablePlan.ShouldBeGreaterThanOrEqualTo(1);
+        harness.ViewModel.FinishCommand.CanExecute(null).ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task Dismissal_OnFirstStep_NeedsNoCleanupCall()
     {
         var harness = new Harness();
