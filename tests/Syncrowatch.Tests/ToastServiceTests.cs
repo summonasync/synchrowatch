@@ -51,6 +51,29 @@ public sealed class ToastServiceTests
     }
 
     [Fact]
+    public void ExplicitCompletedEvent_ShowsTheSyncCompletedToast()
+    {
+        var harness = new Harness();
+        harness.Bus.Publish(new SyncNotification.ExplicitSyncCompleted(
+            Now, new SyncCycleReport(Now, new SyncOutcome("main", "a", "b"), new SyncOutcome("main", "b", "c"))));
+
+        var toast = harness.Factory.Presented.ShouldHaveSingleItem();
+        toast.Kind.ShouldBe(ToastKind.SyncCompleted);
+        toast.Title.ShouldBe("Sync completed");
+        toast.Message.ShouldBe("pulled and pushed on main");
+    }
+
+    [Fact]
+    public void ExplicitCompletedPushOnlyEvent_NamesJustThePush()
+    {
+        var harness = new Harness();
+        harness.Bus.Publish(new SyncNotification.ExplicitSyncCompleted(
+            Now, new SyncCycleReport(Now, null, new SyncOutcome("main", "b", "c"))));
+
+        harness.Factory.Presented.ShouldHaveSingleItem().Message.ShouldBe("pushed on main");
+    }
+
+    [Fact]
     public void RelayPackageEvent_ShowsToastWithCliCommand()
     {
         var harness = new Harness();

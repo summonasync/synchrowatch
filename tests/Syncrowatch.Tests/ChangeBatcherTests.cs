@@ -203,6 +203,59 @@ public class ChangeBatcherTests
     }
 
     [Fact]
+    public void FlushNow_HeldEvents_DispatchImmediatelyThroughBatchReady()
+    {
+        var root = TempDir.Create();
+        File.WriteAllText(Path.Combine(root, "notes.txt"), "stable");
+        var time = new FakeTimeProvider();
+        using var batcher = BuildBatcher(root, time);
+        var batches = Capture(batcher);
+
+        batcher.Accept(new FolderChange("notes.txt", WatchChangeKind.Changed));
+        batcher.FlushNow();
+
+        batches.Count.ShouldBe(1);
+        batches[0].ShouldBe(["notes.txt"]);
+        batcher.PendingCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public void FlushNow_EmptyWindow_EmitsNothing()
+    {
+        var root = TempDir.Create();
+        var time = new FakeTimeProvider();
+        using var batcher = BuildBatcher(root, time);
+        var batches = Capture(batcher);
+
+        batcher.FlushNow();
+
+        batches.ShouldBeEmpty();
+        batcher.PendingCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public void FlushNow_GrowingFile_DefersInsteadOfDispatching()
+    {
+        var root = TempDir.Create();
+        var file = Path.Combine(root, "growing.csv");
+        File.WriteAllText(file, "row1");
+        var time = new FakeTimeProvider();
+        using var batcher = BuildBatcher(root, time);
+        var batches = Capture(batcher);
+
+        batcher.Accept(new FolderChange("growing.csv", WatchChangeKind.Changed));
+        File.WriteAllText(file, "row1\nrow2\n");
+        batcher.FlushNow();
+
+        batches.ShouldBeEmpty();
+        batcher.PendingCount.ShouldBe(1);
+
+        time.Advance(Debounce);
+        batches.Count.ShouldBe(1);
+        batches[0].ShouldBe(["growing.csv"]);
+    }
+
+    [Fact]
     public void Dispose_DropsPendingWindow_EmitsNothing()
     {
         var root = TempDir.Create();

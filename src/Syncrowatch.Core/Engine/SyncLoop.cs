@@ -20,7 +20,6 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
     private readonly ISyncEventStore _history;
     private readonly ISyncEventBus _bus;
     private readonly BatchCommitter _committer;
-    private readonly IPushConfirmation? _confirmation;
     private readonly ITimer _timer;
     private readonly TimeProvider _time;
     private readonly ConcurrentQueue<string> _pending = new();
@@ -31,6 +30,7 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
     private bool _started;
     private int _paused;
     private int _mode;
+    private int _explicitCycle;
     private PendingPush? _pendingPush;
     private DateTimeOffset? _lastCycleUtc;
     private SyncError? _lastError;
@@ -45,8 +45,7 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
         ILocalGit local,
         ISyncEventStore history,
         ISyncEventBus bus,
-        TimeProvider? timeProvider = null,
-        IPushConfirmation? pushConfirmation = null)
+        TimeProvider? timeProvider = null)
     {
         _config = config;
         _remote = remote;
@@ -54,7 +53,6 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
         _history = history;
         _bus = bus;
         _time = timeProvider ?? TimeProvider.System;
-        _confirmation = pushConfirmation;
         _mode = (int)config.Mode;
         _committer = new BatchCommitter(config, local);
         _timer = _time.CreateTimer(Tick, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
@@ -146,62 +144,6 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
         }
     }
 
-    public async Task<Result<SyncOutcome>> ConfirmPendingPush(CancellationToken cancellationToken)
-    {
-        PendingPush? staged;
-        lock (_pendingPushGate)
-        {
-            staged = _pendingPush;
-            _pendingPush = null;
-        }
-
-        if (staged is null)
-        {
-            return new Result<SyncOutcome>.Fail(new SyncError("no_pending_push", "no push is waiting for confirmation"));
-        }
-
-        Result<SyncOutcome> pushed;
-        try
-        {
-            pushed = await _remote.Push(staged.Branch, cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            lock (_pendingPushGate)
-            {
-                _pendingPush ??= staged;
-            }
-
-            throw;
-        }
-
-        if (pushed is Result<SyncOutcome>.Fail failure)
-        {
-            lock (_pendingPushGate)
-            {
-                _pendingPush ??= staged;
-            }
-
-            return new Result<SyncOutcome>.Fail(failure.Error);
-        }
-
-        var outcome = ((Result<SyncOutcome>.Ok)pushed).Value;
-        var settledAt = _time.GetUtcNow();
-        await RecordAsync(
-            new SyncEventDraft(SyncEventKind.CommitOut, staged.Branch, $"pushed {outcome.ToSha}", []),
-            cancellationToken).ConfigureAwait(false);
-        _bus.Publish(new SyncNotification.SyncCompleted(
-            settledAt, new SyncCycleReport(settledAt, null, outcome)));
-        lock (_statusGate)
-        {
-            _lastCycleUtc = settledAt;
-            _lastError = null;
-            _lastFailureEvent = null;
-        }
-
-        return new Result<SyncOutcome>.Ok(outcome);
-    }
-
     public async Task<Result<SyncCycleReport>> SyncOnce(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -212,10 +154,12 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
 
         try
         {
+            Volatile.Write(ref _explicitCycle, 1);
             return await CycleAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
+            Volatile.Write(ref _explicitCycle, 0);
             Interlocked.Exchange(ref _inCycle, 0);
         }
     }
@@ -293,6 +237,7 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
     private async Task<Result<SyncCycleReport>> CycleAsync(CancellationToken cancellationToken)
     {
         var started = _time.GetUtcNow();
+        var explicitCycle = Volatile.Read(ref _explicitCycle) == 1;
         var batchError = await CommitPendingBatchAsync(cancellationToken).ConfigureAwait(false);
         if (batchError is not null)
         {
@@ -357,7 +302,7 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
         SyncOutcome? pushed = null;
         if (headOk.Value.Sha != tipOk.Value)
         {
-            if ((SyncRunMode)Volatile.Read(ref _mode) == SyncRunMode.SemiAuto)
+            if (!explicitCycle && (SyncRunMode)Volatile.Read(ref _mode) == SyncRunMode.SemiAuto)
             {
                 return StagePush(started, pulledOutcome, headOk.Value.Sha);
             }
@@ -372,6 +317,11 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
             await RecordAsync(
                 new SyncEventDraft(SyncEventKind.CommitOut, _config.Branch, $"pushed {pushed.ToSha}", []),
                 cancellationToken).ConfigureAwait(false);
+        }
+
+        if (explicitCycle)
+        {
+            ReleaseStagedPush();
         }
 
         var report = new SyncCycleReport(started, pulledOutcome, pushed);
@@ -476,11 +426,6 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
             _bus.Publish(new SyncNotification.PushPending(staged));
         }
 
-        if (_confirmation is not null)
-        {
-            _ = AskForConfirmationAsync(_confirmation, staged);
-        }
-
         return new Result<SyncCycleReport>.Ok(new SyncCycleReport(started, pulled, null));
     }
 
@@ -492,39 +437,11 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
         }
     }
 
-    private async Task AskForConfirmationAsync(IPushConfirmation confirmation, PendingPush staged)
+    private void ReleaseStagedPush()
     {
-        CancellationToken shutdown;
-        lock (_statusGate)
+        lock (_pendingPushGate)
         {
-            shutdown = _cycleToken;
-        }
-
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(shutdown);
-        Result<SyncOutcome>? released = null;
-        try
-        {
-            if (await confirmation.RequestAsync(staged, linked.Token).ConfigureAwait(false))
-            {
-                released = await ConfirmPendingPush(linked.Token).ConfigureAwait(false);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-        catch (Exception ex)
-        {
-            released = new Result<SyncOutcome>.Fail(
-                new SyncError("push_confirm_failed", $"push confirmation broke: {ex.Message}"));
-        }
-
-        if (released is Result<SyncOutcome>.Fail failure)
-        {
-            await AnnounceFailure(
-                new SyncEventDraft(SyncEventKind.SyncFailed, staged.Branch, RemoteUrlRedactor.Scrub(failure.Error.Message), []),
-                new SyncNotification.SyncFailed(_time.GetUtcNow(), failure.Error),
-                CancellationToken.None).ConfigureAwait(false);
+            _pendingPush = null;
         }
     }
 

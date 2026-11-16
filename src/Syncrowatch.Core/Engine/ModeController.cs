@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Synchro.Core;
 using Syncrowatch.Core.Config;
+using Syncrowatch.Core.History;
 
 namespace Syncrowatch.Core.Engine;
 
@@ -10,6 +11,7 @@ public sealed class ModeController : INotifyPropertyChanged, IDisposable
     private readonly ISyncEngine _engine;
     private readonly ISyncConfigStore _configStore;
     private readonly IFileWatching _watching;
+    private readonly ISyncEventBus? _bus;
     private readonly TimeProvider _time;
     private readonly CancellationTokenSource _lifetime = new();
     private ChangeBatcher? _batcher;
@@ -24,11 +26,13 @@ public sealed class ModeController : INotifyPropertyChanged, IDisposable
         ISyncEngine engine,
         ISyncConfigStore configStore,
         IFileWatching watching,
+        ISyncEventBus? bus = null,
         TimeProvider? timeProvider = null)
     {
         _engine = engine;
         _configStore = configStore;
         _watching = watching;
+        _bus = bus;
         _time = timeProvider ?? TimeProvider.System;
     }
 
@@ -77,6 +81,7 @@ public sealed class ModeController : INotifyPropertyChanged, IDisposable
             _time);
         _watching.ChangeDetected += batcher.Accept;
         batcher.BatchReady += _engine.AcceptBatch;
+        batcher.BatchReady += AnnounceDetected;
         _batcher = batcher;
         _watching.Start(_lifetime.Token);
         _engine.Start(_lifetime.Token);
@@ -105,6 +110,7 @@ public sealed class ModeController : INotifyPropertyChanged, IDisposable
     public async Task<Result<SyncCycleReport>> SyncNowAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed == 1, this);
+        _batcher?.FlushNow();
         return await _engine.SyncOnce(cancellationToken).ConfigureAwait(false);
     }
 
@@ -147,6 +153,7 @@ public sealed class ModeController : INotifyPropertyChanged, IDisposable
         {
             _watching.ChangeDetected -= _batcher.Accept;
             _batcher.BatchReady -= _engine.AcceptBatch;
+            _batcher.BatchReady -= AnnounceDetected;
             _batcher.Dispose();
         }
 
@@ -154,6 +161,16 @@ public sealed class ModeController : INotifyPropertyChanged, IDisposable
         _lifetime.Dispose();
         _watching.Dispose();
         _engine.Dispose();
+    }
+
+    private void AnnounceDetected(IReadOnlyList<string> paths)
+    {
+        if (_mode != SyncRunMode.SemiAuto || _bus is null)
+        {
+            return;
+        }
+
+        _bus.Publish(new SyncNotification.ChangesDetected(_time.GetUtcNow(), paths));
     }
 
     private async Task<bool> PersistModeAsync(SyncRunMode mode, CancellationToken cancellationToken)

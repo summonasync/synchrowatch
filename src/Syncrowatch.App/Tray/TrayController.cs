@@ -27,6 +27,8 @@ public sealed class TrayController : IDisposable
     private readonly NativeMenuItem _semiAutoItem;
     private ModeController? _controller;
     private RelayPollDriver _relayDriver;
+    private readonly DetectionPromptController _detection;
+    private readonly SyncNowRunner _syncNow;
     private int _disposed;
 
     public TrayController(IServiceProvider services, TrayIcon icon, IClassicDesktopStyleApplicationLifetime desktop)
@@ -36,11 +38,17 @@ public sealed class TrayController : IDisposable
         _desktop = desktop;
         _tracker = services.GetRequiredService<TrayStateTracker>();
         _tracker.PropertyChanged += OnTrayStateChanged;
+        _syncNow = services.GetRequiredService<SyncNowRunner>();
         _services.GetRequiredService<ToastService>();
         _services.GetRequiredService<TrayStateWatcher>();
         _relayDriver = _services.GetRequiredService<RelayPollDriver>();
         _relayDriver.Start();
         _syncCommand = new AsyncCommand(RunSyncNowAsync, ReadyForSync, HandleCommandFailure);
+        _detection = new DetectionPromptController(
+            _services.GetRequiredService<ISyncEventBus>(),
+            new DetectionPrompt(),
+            () => _syncCommand.ExecuteAsync(null),
+            HandleCommandFailure);
         _pauseItem = MenuActionItem("Pause", TogglePause);
         _autoItem = ModeItem("Auto", SyncRunMode.Auto);
         _manualItem = ModeItem("Manual", SyncRunMode.Manual);
@@ -87,6 +95,7 @@ public sealed class TrayController : IDisposable
         }
 
         _relayDriver.Dispose();
+        _detection.Dispose();
         _tracker.PropertyChanged -= OnTrayStateChanged;
         _tracker.Dispose();
     }
@@ -114,7 +123,8 @@ public sealed class TrayController : IDisposable
             _controller = new ModeController(
                 _services.GetRequiredService<Func<SyncConfig, ISyncEngine>>()(config),
                 configStore,
-                _services.GetRequiredService<Func<SyncConfig, IFileWatching>>()(config));
+                _services.GetRequiredService<Func<SyncConfig, IFileWatching>>()(config),
+                _services.GetRequiredService<ISyncEventBus>());
             _controller.PropertyChanged += OnControllerPropertyChanged;
             await _controller.LaunchAsync().ConfigureAwait(true);
             RefreshTray();
@@ -133,8 +143,7 @@ public sealed class TrayController : IDisposable
             return;
         }
 
-        _tracker.BeginSync();
-        _tracker.SettleSync(await controller.SyncNowAsync().ConfigureAwait(true));
+        await _syncNow.RunAsync(() => controller.SyncNowAsync(CancellationToken.None)).ConfigureAwait(true);
     }
 
     private async Task ChangeModeAsync(SyncRunMode mode)

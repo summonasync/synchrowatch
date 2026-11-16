@@ -3,6 +3,7 @@ using Shouldly;
 using Synchro.Core;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.Engine;
+using Syncrowatch.Core.History;
 using Xunit;
 
 namespace Syncrowatch.Tests;
@@ -72,7 +73,7 @@ public sealed class ModeControllerTests : IDisposable
         first.Dispose();
 
         var secondEngine = new FakeSyncEngine();
-        using var second = new ModeController(secondEngine, _store, new FakeWatching(), _time);
+        using var second = new ModeController(secondEngine, _store, new FakeWatching(), timeProvider: _time);
         await second.LaunchAsync();
 
         second.Mode.ShouldBe(SyncRunMode.Manual);
@@ -86,7 +87,7 @@ public sealed class ModeControllerTests : IDisposable
         store.Load(Arg.Any<CancellationToken>()).Returns(new Result<SyncConfig>.Ok(Sample(SyncRunMode.Auto)));
         store.Save(Arg.Any<SyncConfig>(), Arg.Any<CancellationToken>())
             .Returns(new Result<SyncConfig>.Fail(new SyncError("unavailable", "settings file could not be written")));
-        using var controller = new ModeController(_engine, store, _watching, _time);
+        using var controller = new ModeController(_engine, store, _watching, timeProvider: _time);
         await controller.LaunchAsync();
 
         await controller.SetModeAsync(SyncRunMode.Manual);
@@ -109,10 +110,23 @@ public sealed class ModeControllerTests : IDisposable
 
         _engine.AcceptedBatches.ShouldHaveSingleItem().ShouldBe(["notes.txt", "docs/spec.md"]);
         _engine.SyncCount.ShouldBe(0);
-        _engine.ConfirmCount.ShouldBe(0);
 
         await controller.SyncNowAsync();
 
+        _engine.SyncCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task SyncNow_FlushesTheDebounceWindow_BeforeCycling()
+    {
+        await _store.Save(Sample(SyncRunMode.Manual), CancellationToken.None);
+        using var controller = Build();
+        await controller.LaunchAsync();
+
+        _watching.Emit("notes.txt");
+        await controller.SyncNowAsync();
+
+        _engine.AcceptedBatches.ShouldHaveSingleItem().ShouldBe(["notes.txt"]);
         _engine.SyncCount.ShouldBe(1);
     }
 
@@ -171,7 +185,81 @@ public sealed class ModeControllerTests : IDisposable
         _engine.DisposeCount.ShouldBe(1);
     }
 
-    private ModeController Build() => new(_engine, _store, _watching, _time);
+    [Fact]
+    public async Task SemiAuto_CommittedWindow_PublishesOneDetectionEventWithWholeBatch()
+    {
+        await _store.Save(Sample(SyncRunMode.SemiAuto), CancellationToken.None);
+        var bus = new SyncEventBus();
+        var detected = new List<SyncNotification.ChangesDetected>();
+        bus.Received += notification =>
+        {
+            if (notification is SyncNotification.ChangesDetected change)
+            {
+                detected.Add(change);
+            }
+        };
+        using var controller = Build(bus);
+        await controller.LaunchAsync();
+
+        _watching.Emit("notes.txt");
+        _watching.Emit("docs/spec.md");
+        _time.Advance(SyncConfig.DefaultDebounce + TimeSpan.FromSeconds(1));
+
+        detected.ShouldHaveSingleItem().Paths.ShouldBe(["notes.txt", "docs/spec.md"]);
+    }
+
+    [Theory]
+    [InlineData(SyncRunMode.Auto)]
+    [InlineData(SyncRunMode.Manual)]
+    public async Task NonSemiAutoModes_NeverPublishDetectionEvents(SyncRunMode mode)
+    {
+        await _store.Save(Sample(mode), CancellationToken.None);
+        var bus = new SyncEventBus();
+        var detected = new List<SyncNotification.ChangesDetected>();
+        bus.Received += notification =>
+        {
+            if (notification is SyncNotification.ChangesDetected change)
+            {
+                detected.Add(change);
+            }
+        };
+        using var controller = Build(bus);
+        await controller.LaunchAsync();
+
+        _watching.Emit("notes.txt");
+        _time.Advance(SyncConfig.DefaultDebounce + TimeSpan.FromSeconds(1));
+        _engine.AcceptedBatches.ShouldNotBeEmpty();
+
+        detected.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task SwitchingAwayFromSemiAuto_StopsDetectionEvents()
+    {
+        await _store.Save(Sample(SyncRunMode.SemiAuto), CancellationToken.None);
+        var bus = new SyncEventBus();
+        var detected = new List<SyncNotification.ChangesDetected>();
+        bus.Received += notification =>
+        {
+            if (notification is SyncNotification.ChangesDetected change)
+            {
+                detected.Add(change);
+            }
+        };
+        using var controller = Build(bus);
+        await controller.LaunchAsync();
+
+        _watching.Emit("notes.txt");
+        _time.Advance(SyncConfig.DefaultDebounce + TimeSpan.FromSeconds(1));
+        await controller.SetModeAsync(SyncRunMode.Auto);
+
+        _watching.Emit("again.txt");
+        _time.Advance(SyncConfig.DefaultDebounce + TimeSpan.FromSeconds(1));
+
+        detected.ShouldHaveSingleItem().Paths.ShouldBe(["notes.txt"]);
+    }
+
+    private ModeController Build(ISyncEventBus? bus = null) => new(_engine, _store, _watching, bus, _time);
 
     private SyncConfig Sample(SyncRunMode mode) => new()
     {

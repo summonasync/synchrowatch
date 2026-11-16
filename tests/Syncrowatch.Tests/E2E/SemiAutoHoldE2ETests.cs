@@ -16,15 +16,19 @@ public sealed class SemiAutoHoldE2ETests : IDisposable
     private readonly SyncE2EStand _stand = new();
 
     [Fact]
-    public async Task SemiAuto_PushHeldUntilConfirmed_RejectedPushStaysPendingAndConvergesAfterMerge()
+    public async Task SemiAuto_PushHeldSilently_SyncNowMergesAndLandsEverything()
     {
         await _stand.BindAsync(_stand.CloneB, SyncRunMode.SemiAuto);
-        using var loopB = await _stand.LoopForAsync(_stand.CloneB);
+        var time = new FakeTimeProvider();
+        using var loopB = await _stand.LoopForAsync(_stand.CloneB, time);
+        loopB.Start();
 
         File.WriteAllText(Path.Combine(_stand.CloneB, HeldFile), "quarterly numbers, draft\n");
         loopB.AcceptBatch([HeldFile]);
-        (await loopB.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>()
-            .Value.Pushed.ShouldBeNull();
+        time.Advance(SyncConfig.DefaultPollInterval);
+        await SyncE2EStand.AwaitAsync(
+            () => Task.FromResult(_stand.SnapshotNotifications().OfType<SyncNotification.PushPending>().Any()),
+            "the held push to stage");
 
         var heldSha = GitCli.Head(_stand.CloneB);
         RemoteTip().ShouldNotBe(heldSha);
@@ -36,27 +40,13 @@ public sealed class SemiAutoHoldE2ETests : IDisposable
         File.WriteAllText(Path.Combine(_stand.CloneA, IncomingFile), "teammates on call\n");
         loopA.AcceptBatch([IncomingFile]);
         (await loopA.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
-        var advancedTip = RemoteTip();
 
-        var rejected = await loopB.ConfirmPendingPush(CancellationToken.None);
+        var synced = await loopB.SyncOnce(CancellationToken.None);
 
-        rejected.ShouldBeOfType<Result<SyncOutcome>.Fail>().Error.Code.ShouldBe("conflict");
-        RemoteTip().ShouldBe(advancedTip);
-
-        (await loopB.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
-        var mergedSha = GitCli.Head(_stand.CloneB);
-        var pendings = _stand.SnapshotNotifications().OfType<SyncNotification.PushPending>().ToList();
-        pendings.Count.ShouldBe(2);
-        pendings[1].Push.Sha.ShouldBe(mergedSha);
-
-        var released = await loopB.ConfirmPendingPush(CancellationToken.None);
-
-        released.ShouldBeOfType<Result<SyncOutcome>.Ok>().Value.ToSha.ShouldBe(mergedSha);
-        RemoteTip().ShouldBe(mergedSha);
-
-        var repeat = await loopB.ConfirmPendingPush(CancellationToken.None);
-        repeat.ShouldBeOfType<Result<SyncOutcome>.Fail>().Error.Code.ShouldBe("no_pending_push");
-
+        synced.ShouldBeOfType<Result<SyncCycleReport>.Ok>().Value.Pushed.ShouldNotBeNull();
+        var landedSha = GitCli.Head(_stand.CloneB);
+        RemoteTip().ShouldBe(landedSha);
+        _stand.SnapshotNotifications().OfType<SyncNotification.PushPending>().ShouldHaveSingleItem();
         (await _stand.EventsAsync(_stand.CloneB)).Select(@event => @event.Kind)
             .ShouldBe([SyncEventKind.CommitOut, SyncEventKind.AutoMerged]);
         RemoteBlobText(HeldFile).ShouldBe("quarterly numbers, draft\n");

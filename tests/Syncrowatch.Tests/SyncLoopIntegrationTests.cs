@@ -75,6 +75,37 @@ public sealed class SyncLoopIntegrationTests
     }
 
     [Fact]
+    public async Task SyncNow_InsideTheDebounceWindow_CommitsAndPushesThePendingChange()
+    {
+        using var pair = new ClonePair();
+        var store = new JsonSyncEventStore(Path.Combine(pair.Root, "history-a"));
+        var settings = Substitute.For<ISyncConfigStore>();
+        settings.Load(Arg.Any<CancellationToken>())
+            .Returns(new Result<SyncConfig>.Ok(new SyncConfig
+            {
+                WatchedFolder = pair.CloneA,
+                RemoteUrl = pair.BarePath,
+                Branch = "main"
+            }));
+        using var watching = new FakeWatching();
+        using var engine = pair.Loop(pair.CloneA, store);
+        using var controller = new ModeController(engine, settings, watching, timeProvider: new FakeTimeProvider());
+        await controller.LaunchAsync();
+
+        File.WriteAllText(Path.Combine(pair.CloneA, SharedFile), "edited inside the window\n");
+        watching.Emit(SharedFile);
+
+        var outcome = await controller.SyncNowAsync();
+
+        outcome.ShouldBeOfType<Result<SyncCycleReport>.Ok>().Value.Pushed.ShouldNotBeNull();
+        GitCli.Run(pair.CloneA, "status", "--porcelain").Output.Trim().ShouldBeEmpty();
+        GitCli.Run(pair.CloneA, "log", "-1", "--pretty=%s").Output.Trim()
+            .ShouldBe("sync: 1 file changed (shared.txt)");
+        GitCli.Run(pair.BarePath, "rev-parse", "main").Output.Trim()
+            .ShouldBe(GitCli.Run(pair.CloneA, "rev-parse", "HEAD").Output.Trim());
+    }
+
+    [Fact]
     public async Task CancelDuringCommit_BatchDoesNotHalfLand()
     {
         using var pair = new ClonePair();

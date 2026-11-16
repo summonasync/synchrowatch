@@ -1,3 +1,4 @@
+using Syncrowatch.Core;
 using Syncrowatch.Core.History;
 
 namespace Syncrowatch.App.Notifications;
@@ -78,6 +79,10 @@ public sealed class ToastService : IDisposable
             ToastKind.AutoMerged,
             "Auto-merged",
             MergedMessage(merged)),
+        SyncNotification.ExplicitSyncCompleted completed => new ToastContent(
+            ToastKind.SyncCompleted,
+            "Sync completed",
+            CompletedMessage(completed.Report)),
         SyncNotification.MergeConflicted conflicted => new ToastContent(
             ToastKind.Conflict,
             "Conflict — action needed",
@@ -106,6 +111,23 @@ public sealed class ToastService : IDisposable
         merged.Files.Count == 1
             ? $"1 file merged automatically on {merged.Branch}"
             : $"{merged.Files.Count} files merged automatically on {merged.Branch}";
+
+    private static string CompletedMessage(SyncCycleReport report)
+    {
+        List<string> legs = [];
+        if (report.Pulled is not null)
+        {
+            legs.Add("pulled");
+        }
+
+        if (report.Pushed is not null)
+        {
+            legs.Add("pushed");
+        }
+
+        var branch = (report.Pushed ?? report.Pulled)!.Branch;
+        return $"{string.Join(" and ", legs)} on {branch}";
+    }
 
     private static string ConflictMessage(SyncNotification.MergeConflicted conflicted)
     {

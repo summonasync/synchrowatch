@@ -1,16 +1,15 @@
 using Avalonia.Threading;
-using Syncrowatch.Core.Engine;
 
 namespace Syncrowatch.App.Tray;
 
-public sealed class PushConfirmationPrompt : IPushConfirmation
+public sealed class DetectionPrompt : IDetectionPrompt
 {
     private readonly object _gate = new();
-    private PushConfirmationDialog? _dialog;
+    private DetectionPromptDialog? _dialog;
 
-    public async Task<bool> RequestAsync(PendingPush push, CancellationToken cancellationToken)
+    public async Task<bool> RequestAsync(IReadOnlyList<string> paths, CancellationToken cancellationToken)
     {
-        var dialog = await Dispatcher.UIThread.InvokeAsync(() => Present(push));
+        var dialog = await Dispatcher.UIThread.InvokeAsync(() => Present(paths));
         if (dialog is null)
         {
             return false;
@@ -27,7 +26,7 @@ public sealed class PushConfirmationPrompt : IPushConfirmation
         }
     }
 
-    private PushConfirmationDialog? Present(PendingPush push)
+    private DetectionPromptDialog? Present(IReadOnlyList<string> paths)
     {
         lock (_gate)
         {
@@ -36,14 +35,14 @@ public sealed class PushConfirmationPrompt : IPushConfirmation
                 return null;
             }
 
-            var dialog = new PushConfirmationDialog(push);
+            var dialog = new DetectionPromptDialog(paths);
             _dialog = dialog;
             dialog.Show();
             return dialog;
         }
     }
 
-    private void Release(PushConfirmationDialog dialog)
+    private void Release(DetectionPromptDialog dialog)
     {
         lock (_gate)
         {

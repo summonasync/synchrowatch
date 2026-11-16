@@ -1,23 +1,22 @@
 using Avalonia.Controls;
-using Syncrowatch.Core.Engine;
 
 namespace Syncrowatch.App.Tray;
 
-public partial class PushConfirmationDialog : Window
+public partial class DetectionPromptDialog : Window
 {
     private readonly TaskCompletionSource<bool> _decision = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private bool _settled;
 
-    public PushConfirmationDialog()
+    public DetectionPromptDialog()
     {
         InitializeComponent();
     }
 
-    public PushConfirmationDialog(PendingPush push) : this()
+    public DetectionPromptDialog(IReadOnlyList<string> paths) : this()
     {
-        var model = new PushConfirmationViewModel(push);
+        var model = new DetectionPromptViewModel(paths);
         DataContext = model;
-        model.Confirmed += (_, _) => Decide(true);
+        model.SyncNowRequested += (_, _) => Decide(true);
         model.Dismissed += (_, _) => Decide(false);
         Closing += OnClosing;
     }

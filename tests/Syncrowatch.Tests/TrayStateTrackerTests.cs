@@ -31,10 +31,21 @@ public sealed class TrayStateTrackerTests : IDisposable
         _tracker.BeginSync();
 
         _tracker.State.ShouldBe(TrayState.Syncing);
-        _tracker.ToolTipText.ShouldBe("Syncrowatch — syncing");
+        _tracker.ToolTipText.ShouldBe("Syncrowatch — Synchronizing…");
 
         _bus.Publish(new SyncNotification.SyncCompleted(DateTimeOffset.UtcNow, Quiet()));
         _tracker.State.ShouldBe(TrayState.Idle);
+    }
+
+    [Fact]
+    public void SettleSync_SuccessfulOutcome_BackToIdle()
+    {
+        _tracker.BeginSync();
+
+        _tracker.SettleSync(new Result<SyncCycleReport>.Ok(Quiet()));
+
+        _tracker.State.ShouldBe(TrayState.Idle);
+        _tracker.ToolTipText.ShouldBe("Syncrowatch — idle");
     }
 
     [Fact]
@@ -87,7 +98,7 @@ public sealed class TrayStateTrackerTests : IDisposable
         _bus.Publish(new SyncNotification.PushPending(new PendingPush("main", "shaHead", DateTimeOffset.UtcNow)));
 
         _tracker.PushPending.ShouldBeTrue();
-        _tracker.ToolTipText.ShouldBe("Syncrowatch — idle, push pending confirmation");
+        _tracker.ToolTipText.ShouldBe("Syncrowatch — idle, push pending");
 
         _bus.Publish(new SyncNotification.SyncCompleted(DateTimeOffset.UtcNow, Quiet()));
         _tracker.PushPending.ShouldBeFalse();
@@ -101,10 +112,10 @@ public sealed class TrayStateTrackerTests : IDisposable
         _tracker.ToolTipText.ShouldBe("Syncrowatch — idle, paused");
 
         _bus.Publish(new SyncNotification.PushPending(new PendingPush("main", "shaHead", DateTimeOffset.UtcNow)));
-        _tracker.ToolTipText.ShouldBe("Syncrowatch — idle, paused, push pending confirmation");
+        _tracker.ToolTipText.ShouldBe("Syncrowatch — idle, paused, push pending");
 
         _tracker.SetPaused(false);
-        _tracker.ToolTipText.ShouldBe("Syncrowatch — idle, push pending confirmation");
+        _tracker.ToolTipText.ShouldBe("Syncrowatch — idle, push pending");
     }
 
     private static SyncCycleReport Quiet() => new(DateTimeOffset.UtcNow, null, null);
