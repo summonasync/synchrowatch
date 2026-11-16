@@ -399,6 +399,7 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
         PlanSummary = Describe(_plan);
         ErrorMessage = null;
         NotifyAll();
+        RefreshCommands();
     }
 
     private async Task BootstrapAsync(BootstrapPlan plan, BootstrapDirection? direction)
