@@ -280,6 +280,41 @@ public class ChangeBatcherTests
             () => new ChangeBatcher(root, TimeSpan.Zero, SyncIgnoreRules.FromLines(["*.tmp"])));
     }
 
+    [Fact]
+    public void PendingPaths_BeforeFirstBatch_ReflectsAcceptedPaths()
+    {
+        var root = TempDir.Create();
+        File.WriteAllText(Path.Combine(root, "a.txt"), "a");
+        File.WriteAllText(Path.Combine(root, "b.txt"), "b");
+        var time = new FakeTimeProvider();
+        using var batcher = BuildBatcher(root, time);
+        var batches = Capture(batcher);
+
+        batcher.Accept(new FolderChange("a.txt", WatchChangeKind.Created));
+        batcher.Accept(new FolderChange("b.txt", WatchChangeKind.Changed));
+
+        batcher.PendingPaths.ShouldBe(["a.txt", "b.txt"], ignoreOrder: true);
+        batches.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void PendingPaths_RightAfterBatchReady_IsEmpty()
+    {
+        var root = TempDir.Create();
+        File.WriteAllText(Path.Combine(root, "notes.txt"), "stable");
+        var time = new FakeTimeProvider();
+        using var batcher = BuildBatcher(root, time);
+        var batches = Capture(batcher);
+
+        batcher.Accept(new FolderChange("notes.txt", WatchChangeKind.Changed));
+        batcher.PendingPaths.ShouldNotBeEmpty();
+
+        time.Advance(Debounce);
+
+        batches.Count.ShouldBe(1);
+        batcher.PendingPaths.ShouldBeEmpty();
+    }
+
     private static ChangeBatcher BuildBatcher(string root, FakeTimeProvider time) =>
         new(root, Debounce, SyncIgnoreRules.ForFolder(root), time);
 

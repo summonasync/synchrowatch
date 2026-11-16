@@ -40,6 +40,17 @@ public sealed class ChangeBatcher : IDisposable
 
     public void FlushNow() => Flush(null);
 
+    public IReadOnlyCollection<string> PendingPaths
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _pending.Keys];
+            }
+        }
+    }
+
     public void Accept(FolderChange change)
     {
         var relative = change.RelativePath.Replace('\\', '/');
