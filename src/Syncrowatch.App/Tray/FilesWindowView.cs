@@ -1,13 +1,9 @@
-using Avalonia.Controls;
-using Microsoft.Extensions.DependencyInjection;
-using Syncrowatch.App.Files;
-
 namespace Syncrowatch.App.Tray;
 
-public sealed class FilesWindowView(IServiceProvider services) : IFilesView
+public sealed class FilesWindowView(Func<IFilesWindow> createWindow) : IFilesView
 {
-    private readonly IServiceProvider _services = services;
-    private FilesWindow? _window;
+    private readonly Func<IFilesWindow> _createWindow = createWindow;
+    private IFilesWindow? _window;
 
     public void Show()
     {
@@ -17,14 +13,14 @@ public sealed class FilesWindowView(IServiceProvider services) : IFilesView
             return;
         }
 
-        _window = new FilesWindow(_services);
+        _window = _createWindow();
         _window.Closed += OnWindowClosed;
         _window.Show();
     }
 
     private void OnWindowClosed(object? sender, EventArgs e)
     {
-        if (sender is Window window)
+        if (sender is IFilesWindow window)
         {
             window.Closed -= OnWindowClosed;
         }

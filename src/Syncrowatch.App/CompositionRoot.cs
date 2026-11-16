@@ -60,7 +60,7 @@ public static class CompositionRoot
             sp.GetRequiredService<ISyncEventBus>(), sp.GetRequiredService<ITrayStateUpdater>()));
         services.AddSingleton<IHistoryView>(sp => new HistoryWindowView(sp));
         services.AddSingleton<IPendingPathsSource>(new PendingPathsSource());
-        services.AddSingleton<IFilesView>(sp => new FilesWindowView(sp));
+        services.AddSingleton<IFilesView>(sp => new FilesWindowView(() => new FilesWindow(sp)));
         services.AddSingleton<Func<SyncConfig, IFileWatching>>(config => new FolderWatcher(config.WatchedFolder));
         services.AddSingleton<Func<SyncConfig, ISyncEngine>>(sp => config => new SyncLoop(
             config,

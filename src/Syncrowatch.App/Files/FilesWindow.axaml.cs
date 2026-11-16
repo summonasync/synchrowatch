@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Synchro.Core;
 using Syncrowatch.App.Notifications;
+using Syncrowatch.App.Tray;
 using Syncrowatch.Core;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.Engine;
@@ -11,7 +12,7 @@ using Syncrowatch.Core.Transport;
 
 namespace Syncrowatch.App.Files;
 
-public partial class FilesWindow : Window
+public partial class FilesWindow : Window, IFilesWindow
 {
     private readonly FilesViewModel? _viewModel;
 

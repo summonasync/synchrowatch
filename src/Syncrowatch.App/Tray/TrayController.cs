@@ -63,6 +63,7 @@ public sealed class TrayController : IDisposable
             _semiAutoItem,
             new NativeMenuItemSeparator(),
             MenuActionItem("Open history", OpenHistory),
+            MenuActionItem("Open files", OpenFiles),
             MenuActionItem("Settings", OpenSettings),
             new NativeMenuItemSeparator(),
             MenuActionItem("Exit", Exit)
@@ -181,6 +182,8 @@ public sealed class TrayController : IDisposable
     }
 
     private void OpenHistory() => _services.GetRequiredService<IHistoryView>().Show();
+
+    private void OpenFiles() => _services.GetRequiredService<IFilesView>().Show();
 
     private void OpenSettings()
     {
