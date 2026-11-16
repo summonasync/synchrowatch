@@ -26,8 +26,7 @@ public sealed class Bootstrapper(SyncConfig config, IRemoteRepository remote, IL
 
             return (folderHasContent, branchRef) switch
             {
-                (false, null) => new Result<BootstrapPlan>.Fail(
-                    SyncError.Invalid("watched folder and remote branch are both empty")),
+                (false, null) => new Result<BootstrapPlan>.Ok(new BootstrapPlan.WatchEmpty()),
                 (false, _) => new Result<BootstrapPlan>.Ok(new BootstrapPlan.CheckoutRemote()),
                 (true, null) => new Result<BootstrapPlan>.Ok(new BootstrapPlan.PublishFolder()),
                 (true, { } branch) => new Result<BootstrapPlan>.Ok(new BootstrapPlan.Decide(
@@ -55,6 +54,7 @@ public sealed class Bootstrapper(SyncConfig config, IRemoteRepository remote, IL
             {
                 BootstrapPlan.CheckoutRemote => await CheckoutRemoteAsync(cancellationToken).ConfigureAwait(false),
                 BootstrapPlan.PublishFolder => await PublishFolderAsync(null, cancellationToken).ConfigureAwait(false),
+                BootstrapPlan.WatchEmpty => await WatchEmptyAsync(cancellationToken).ConfigureAwait(false),
                 _ => throw new InvalidOperationException("bootstrap plan is neither checkout nor publish")
             };
         });
@@ -65,6 +65,16 @@ public sealed class Bootstrapper(SyncConfig config, IRemoteRepository remote, IL
         RequireOk(await remote.Fetch(cancellationToken).ConfigureAwait(false));
         RequireOk(await local.Checkout(config.WatchedFolder, config.Branch, $"{OriginName}/{config.Branch}", cancellationToken).ConfigureAwait(false));
         return await FinishAsync(BootstrapFlow.CheckoutRemote, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<Result<BootstrapOutcome>> WatchEmptyAsync(CancellationToken cancellationToken)
+    {
+        await PrepareRepositoryAsync(cancellationToken).ConfigureAwait(false);
+        var rules = LoadRules();
+        RequireOk(await local.ApplyExcludes(config.WatchedFolder, rules.Patterns, cancellationToken).ConfigureAwait(false));
+        RequireOk(await local.CommitEmpty(config.WatchedFolder, InitialCommitMessage, cancellationToken).ConfigureAwait(false));
+        RequireOk(await remote.Push(config.Branch, cancellationToken).ConfigureAwait(false));
+        return await FinishAsync(BootstrapFlow.WatchEmpty, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<Result<BootstrapOutcome>> TrackRemoteAsync(CancellationToken cancellationToken)

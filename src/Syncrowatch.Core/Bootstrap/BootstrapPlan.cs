@@ -6,5 +6,7 @@ public abstract record BootstrapPlan
 
     public sealed record PublishFolder : BootstrapPlan;
 
+    public sealed record WatchEmpty : BootstrapPlan;
+
     public sealed record Decide(BootstrapOptions Options) : BootstrapPlan;
 }

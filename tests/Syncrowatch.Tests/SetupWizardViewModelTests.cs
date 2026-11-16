@@ -183,6 +183,20 @@ public class SetupWizardViewModelTests
     }
 
     [Fact]
+    public async Task Assess_WithWatchEmptyPlan_EnablesFinishAndDescribesFreshStart()
+    {
+        var harness = new Harness();
+        await ReachBootstrapAsync(harness, new Result<BootstrapPlan>.Ok(new BootstrapPlan.WatchEmpty()));
+
+        harness.ViewModel.CanFinish.ShouldBeTrue();
+        harness.ViewModel.PlanSummary.ShouldNotBeNull().ShouldContain("both empty");
+        harness.ViewModel.FinishCommand.CanExecute(null).ShouldBeTrue();
+        await harness.ViewModel.FinishAsync();
+        harness.ViewModel.Step.ShouldBe(WizardStep.Completed);
+        await harness.ConfigStore.Received(1).Save(Arg.Any<SyncConfig>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Dismissal_OnFirstStep_NeedsNoCleanupCall()
     {
         var harness = new Harness();

@@ -17,6 +17,8 @@ public interface ILocalGit
 
     Task<Result<Unit>> Commit(string folder, string message, CancellationToken cancellationToken);
 
+    Task<Result<Unit>> CommitEmpty(string folder, string message, CancellationToken cancellationToken);
+
     Task<Result<CommitOutcome>> CommitPaths(
         string folder, CommitIdentity identity, string message, IReadOnlyList<string> relativePaths, CancellationToken cancellationToken);
 

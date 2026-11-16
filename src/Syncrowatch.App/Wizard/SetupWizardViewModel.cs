@@ -210,7 +210,7 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
 
     public bool NeedsChoice => _plan is BootstrapPlan.Decide;
 
-    public bool CanFinish => _plan is BootstrapPlan.CheckoutRemote or BootstrapPlan.PublishFolder;
+    public bool CanFinish => _plan is BootstrapPlan.CheckoutRemote or BootstrapPlan.PublishFolder or BootstrapPlan.WatchEmpty;
 
     public bool RequiresDismissalCleanup => _tokenStored && !_bootstrapCompleted;
 
@@ -307,7 +307,7 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
 
     public async Task FinishAsync()
     {
-        if (_plan is not (BootstrapPlan.CheckoutRemote or BootstrapPlan.PublishFolder))
+        if (_plan is not (BootstrapPlan.CheckoutRemote or BootstrapPlan.PublishFolder or BootstrapPlan.WatchEmpty))
         {
             return;
         }
@@ -451,6 +451,8 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
             $"The folder is empty and branch {_branch} exists on the remote. Its history will be checked out into the folder.",
         BootstrapPlan.PublishFolder =>
             $"The folder has files and branch {_branch} is empty on the remote. The folder will be published as the first commit.",
+        BootstrapPlan.WatchEmpty =>
+            $"The folder and branch {_branch} are both empty. An initial commit marks the start; files you add to the folder will be published as they appear.",
         BootstrapPlan.Decide decide =>
             $"{decide.Options.LocalFileCount} local files meet existing history on branch {decide.Options.Branch} ({Short(decide.Options.RemoteSha)}). Choose which side wins.",
         _ => "The folder and repository are ready to sync."

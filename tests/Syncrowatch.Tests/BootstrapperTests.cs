@@ -70,13 +70,14 @@ public class BootstrapperTests
     }
 
     [Fact]
-    public async Task Assess_EmptyFolderAndEmptyRepo_FailsAsDegenerate()
+    public async Task Assess_EmptyFolderAndEmptyRepo_PicksWatchEmpty()
     {
         using var standIn = new StandIn(seededRepo: false);
 
         var outcome = await standIn.Bootstrapper.Assess(CancellationToken.None);
 
-        outcome.ShouldBeOfType<Result<BootstrapPlan>.Fail>().Error.Code.ShouldBe("invalid");
+        outcome.ShouldBeOfType<Result<BootstrapPlan>.Ok>().Value
+            .ShouldBeOfType<BootstrapPlan.WatchEmpty>();
     }
 
     [Fact]
@@ -108,6 +109,28 @@ public class BootstrapperTests
         File.ReadAllText(Path.Combine(standIn.FolderPath, "notes.txt")).ShouldBe("seed from peer");
         GitCli.Head(standIn.FolderPath).ShouldBe(remoteTip);
         GitCli.Run(standIn.FolderPath, "status", "--porcelain").Output.Trim().ShouldBeEmpty();
+        standIn.Environment.AssertGlobalConfigIsolated();
+    }
+
+    [Fact]
+    public async Task Execute_WatchEmpty_PublishesEmptyInitialCommitAndTracksFolder()
+    {
+        using var standIn = new StandIn(seededRepo: false);
+
+        var plan = Ok(await standIn.Bootstrapper.Assess(CancellationToken.None));
+        var outcome = await standIn.Bootstrapper.Execute(plan, null, CancellationToken.None);
+
+        var ok = outcome.ShouldBeOfType<Result<BootstrapOutcome>.Ok>();
+        var completed = ok.Value.ShouldBeOfType<BootstrapOutcome.Completed>();
+        completed.Flow.ShouldBe(BootstrapFlow.WatchEmpty);
+        completed.Branch.ShouldBe("main");
+        var remoteSha = GitCli.Run(standIn.BarePath, "rev-parse", "refs/heads/main").Output.Trim();
+        completed.Sha.ShouldBe(remoteSha);
+        GitCli.Head(standIn.FolderPath).ShouldBe(remoteSha);
+        GitCli.Run(standIn.FolderPath, "log", "--format=%s", "-1").Output.Trim().ShouldBe("Initial Syncrowatch commit");
+        GitCli.Run(standIn.FolderPath, "status", "--porcelain").Output.Trim().ShouldBeEmpty();
+        Directory.GetFiles(standIn.FolderPath, "*", SearchOption.TopDirectoryOnly)
+            .ShouldBeEmpty();
         standIn.Environment.AssertGlobalConfigIsolated();
     }
 

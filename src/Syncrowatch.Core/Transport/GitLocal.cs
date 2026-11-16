@@ -79,6 +79,18 @@ public sealed class GitLocal(IGitRunner runner) : ILocalGit
             return new Result<Unit>.Ok(Unit.Value);
         });
 
+    public Task<Result<Unit>> CommitEmpty(string folder, string message, CancellationToken cancellationToken) =>
+        TransportResult.Capture<Unit>(async () =>
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                throw new GitOperationException(SyncError.Invalid("commit message is empty"));
+            }
+
+            GitFailure.EnsureSuccess(await RunAsync(folder, ["commit", "--allow-empty", "-m", message], cancellationToken).ConfigureAwait(false), "commit");
+            return new Result<Unit>.Ok(Unit.Value);
+        });
+
     public Task<Result<StageOutcome>> StagePaths(string folder, IReadOnlyList<string> relativePaths, CancellationToken cancellationToken) =>
         TransportResult.Capture<StageOutcome>(async () =>
         {
