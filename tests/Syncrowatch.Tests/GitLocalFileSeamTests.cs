@@ -23,6 +23,30 @@ public class GitLocalFileSeamTests
         files.ShouldBe(listed);
     }
 
+    [Theory]
+    [InlineData("folder with spaces/notes here.txt")]
+    [InlineData("юникод-папка/отчёт.txt")]
+    public async Task HostileShapePaths_FlowThroughListLogAndChangedPaths(string relativePath)
+    {
+        using var repo = new LocalRepo();
+        repo.Write(relativePath, "payload", "seed a hostile path");
+        var baseSha = GitCli.Head(repo.Work);
+        repo.Write(relativePath, "payload v2", "touch the hostile path");
+
+        var listed = await repo.Local.ListTrackedFiles(repo.Work, CancellationToken.None);
+        var reference = GitCli.Run(repo.Work, "ls-files", "-z")
+            .Output.Split('\0', StringSplitOptions.RemoveEmptyEntries);
+
+        listed.ShouldBeOfType<Result<IReadOnlyList<string>>.Ok>().Value.ShouldBe(reference);
+
+        var log = await repo.Local.LogPath(repo.Work, relativePath, 10, 0, CancellationToken.None);
+        log.ShouldBeOfType<Result<IReadOnlyList<GitLogEntry>>.Ok>().Value
+            .Select(entry => entry.Subject).ShouldBe(["touch the hostile path", "seed a hostile path"]);
+
+        var changed = await repo.Local.ChangedPaths(repo.Work, baseSha, "HEAD", CancellationToken.None);
+        changed.ShouldBeOfType<Result<IReadOnlyList<string>>.Ok>().Value.ShouldBe([relativePath]);
+    }
+
     [Fact]
     public async Task ListTrackedFiles_MissingRepositoryRoot_FailsAsNotFound()
     {
@@ -80,6 +104,20 @@ public class GitLocalFileSeamTests
         var outcome = await repo.Local.LogPath(repo.Work, "ghost.txt", 5, 0, CancellationToken.None);
 
         outcome.ShouldBeOfType<Result<IReadOnlyList<GitLogEntry>>.Ok>().Value.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task LogPath_EmptySubjectCommit_IsDroppedFromTheTimeline()
+    {
+        using var repo = new LocalRepo();
+        repo.Write("ledger.txt", "one", "seed the ledger");
+        File.WriteAllText(Path.Combine(repo.Work, "ledger.txt"), "two");
+        GitCli.Ensure(repo.Work, "commit", "-a", "--allow-empty-message", "-m", "");
+
+        var outcome = await repo.Local.LogPath(repo.Work, "ledger.txt", 10, 0, CancellationToken.None);
+
+        outcome.ShouldBeOfType<Result<IReadOnlyList<GitLogEntry>>.Ok>().Value
+            .Select(entry => entry.Subject).ShouldBe(["seed the ledger"]);
     }
 
     [Theory]
@@ -147,6 +185,23 @@ public class GitLocalFileSeamTests
         var outcome = await repo.Local.ChangedPaths(repo.Work, baseSha, "HEAD", CancellationToken.None);
 
         outcome.ShouldBeOfType<Result<IReadOnlyList<string>>.Ok>().Value.ShouldBe(["a.txt", "b.txt"]);
+    }
+
+    [Fact]
+    public async Task ChangedPaths_RevisionOrder_PinsTheDiffDirection()
+    {
+        using var repo = new LocalRepo();
+        repo.Write("origin.txt", "first", "seed the origin");
+        var baseSha = GitCli.Head(repo.Work);
+        GitCli.Ensure(repo.Work, "mv", "origin.txt", "renamed.txt");
+        GitCli.CommitAll(repo.Work, "rename the origin");
+        var headSha = GitCli.Head(repo.Work);
+
+        var forward = await repo.Local.ChangedPaths(repo.Work, baseSha, headSha, CancellationToken.None);
+        var backward = await repo.Local.ChangedPaths(repo.Work, headSha, baseSha, CancellationToken.None);
+
+        forward.ShouldBeOfType<Result<IReadOnlyList<string>>.Ok>().Value.ShouldBe(["renamed.txt"]);
+        backward.ShouldBeOfType<Result<IReadOnlyList<string>>.Ok>().Value.ShouldBe(["origin.txt"]);
     }
 
     [Theory]
