@@ -89,7 +89,7 @@ public sealed class SyncLoopIntegrationTests
             }));
         using var watching = new FakeWatching();
         using var engine = pair.Loop(pair.CloneA, store);
-        using var controller = new ModeController(engine, settings, watching, new FakeTimeProvider());
+        using var controller = new ModeController(engine, settings, watching, timeProvider: new FakeTimeProvider());
         await controller.LaunchAsync();
 
         File.WriteAllText(Path.Combine(pair.CloneA, SharedFile), "edited inside the window\n");

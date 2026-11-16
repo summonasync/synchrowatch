@@ -27,6 +27,7 @@ public sealed class TrayController : IDisposable
     private readonly NativeMenuItem _semiAutoItem;
     private ModeController? _controller;
     private RelayPollDriver _relayDriver;
+    private readonly DetectionPromptController _detection;
     private int _disposed;
 
     public TrayController(IServiceProvider services, TrayIcon icon, IClassicDesktopStyleApplicationLifetime desktop)
@@ -40,6 +41,11 @@ public sealed class TrayController : IDisposable
         _services.GetRequiredService<TrayStateWatcher>();
         _relayDriver = _services.GetRequiredService<RelayPollDriver>();
         _relayDriver.Start();
+        _detection = new DetectionPromptController(
+            _services.GetRequiredService<ISyncEventBus>(),
+            new DetectionPrompt(),
+            RunSyncNowAsync,
+            HandleCommandFailure);
         _syncCommand = new AsyncCommand(RunSyncNowAsync, ReadyForSync, HandleCommandFailure);
         _pauseItem = MenuActionItem("Pause", TogglePause);
         _autoItem = ModeItem("Auto", SyncRunMode.Auto);
@@ -87,6 +93,7 @@ public sealed class TrayController : IDisposable
         }
 
         _relayDriver.Dispose();
+        _detection.Dispose();
         _tracker.PropertyChanged -= OnTrayStateChanged;
         _tracker.Dispose();
     }
@@ -114,7 +121,8 @@ public sealed class TrayController : IDisposable
             _controller = new ModeController(
                 _services.GetRequiredService<Func<SyncConfig, ISyncEngine>>()(config),
                 configStore,
-                _services.GetRequiredService<Func<SyncConfig, IFileWatching>>()(config));
+                _services.GetRequiredService<Func<SyncConfig, IFileWatching>>()(config),
+                _services.GetRequiredService<ISyncEventBus>());
             _controller.PropertyChanged += OnControllerPropertyChanged;
             await _controller.LaunchAsync().ConfigureAwait(true);
             RefreshTray();

@@ -15,6 +15,8 @@ public abstract record SyncNotification
 
     public sealed record PushPending(PendingPush Push) : SyncNotification;
 
+    public sealed record ChangesDetected(DateTimeOffset OccurredUtc, IReadOnlyList<string> Paths) : SyncNotification;
+
     public sealed record RelayPackageDetected(
         DateTimeOffset OccurredUtc,
         string Project,
