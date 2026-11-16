@@ -4,5 +4,6 @@ public enum BootstrapFlow
 {
     CheckoutRemote,
     RepoTracked,
-    PublishFolder
+    PublishFolder,
+    WatchEmpty
 }
