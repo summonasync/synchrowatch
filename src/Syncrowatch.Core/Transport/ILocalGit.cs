@@ -41,4 +41,12 @@ public interface ILocalGit
     Task<Result<string>> CommitMerge(string folder, CommitIdentity identity, string message, CancellationToken cancellationToken);
 
     Task<Result<StageOutcome>> RemovePaths(string folder, IReadOnlyList<string> relativePaths, CancellationToken cancellationToken);
+
+    Task<Result<IReadOnlyList<string>>> ListTrackedFiles(string folder, CancellationToken cancellationToken);
+
+    Task<Result<IReadOnlyList<GitLogEntry>>> LogPath(
+        string folder, string relativePath, int limit, int skip, CancellationToken cancellationToken);
+
+    Task<Result<IReadOnlyList<string>>> ChangedPaths(
+        string folder, string fromRevision, string toRevision, CancellationToken cancellationToken);
 }

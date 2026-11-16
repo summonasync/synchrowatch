@@ -63,6 +63,7 @@ public sealed class TrayController : IDisposable
             _semiAutoItem,
             new NativeMenuItemSeparator(),
             MenuActionItem("Open history", OpenHistory),
+            MenuActionItem("Open files", OpenFiles),
             MenuActionItem("Settings", OpenSettings),
             new NativeMenuItemSeparator(),
             MenuActionItem("Exit", Exit)
@@ -124,7 +125,8 @@ public sealed class TrayController : IDisposable
                 _services.GetRequiredService<Func<SyncConfig, ISyncEngine>>()(config),
                 configStore,
                 _services.GetRequiredService<Func<SyncConfig, IFileWatching>>()(config),
-                _services.GetRequiredService<ISyncEventBus>());
+                _services.GetRequiredService<ISyncEventBus>(),
+                pendingPaths: _services.GetRequiredService<IPendingPathsSource>());
             _controller.PropertyChanged += OnControllerPropertyChanged;
             await _controller.LaunchAsync().ConfigureAwait(true);
             RefreshTray();
@@ -180,6 +182,8 @@ public sealed class TrayController : IDisposable
     }
 
     private void OpenHistory() => _services.GetRequiredService<IHistoryView>().Show();
+
+    private void OpenFiles() => _services.GetRequiredService<IFilesView>().Show();
 
     private void OpenSettings()
     {

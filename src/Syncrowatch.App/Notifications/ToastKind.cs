@@ -7,5 +7,7 @@ public enum ToastKind
     Conflict,
     Failure,
     RelayPackage,
-    RelayWarning
+    RelayWarning,
+    LinkCopied,
+    LinkPending
 }

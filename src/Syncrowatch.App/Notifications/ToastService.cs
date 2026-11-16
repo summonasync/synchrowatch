@@ -21,6 +21,14 @@ public sealed class ToastService : IDisposable
 
     public void Dispose() => _bus.Received -= OnNotification;
 
+    public void Show(ToastContent content)
+    {
+        lock (_gate)
+        {
+            PresentLocked(content);
+        }
+    }
+
     private void OnNotification(SyncNotification notification)
     {
         var content = Describe(notification);
@@ -36,18 +44,23 @@ public sealed class ToastService : IDisposable
                 return;
             }
 
-            if (_active.Count >= MaxVisible)
-            {
-                var oldest = _active[0];
-                _active.RemoveAt(0);
-                _windows.Dismiss(oldest);
-            }
-
-            var toast = new ToastViewModel(content);
-            _active.Add(toast);
-            ReassignSlots();
-            _windows.Present(toast, () => Release(toast));
+            PresentLocked(content);
         }
+    }
+
+    private void PresentLocked(ToastContent content)
+    {
+        if (_active.Count >= MaxVisible)
+        {
+            var oldest = _active[0];
+            _active.RemoveAt(0);
+            _windows.Dismiss(oldest);
+        }
+
+        var toast = new ToastViewModel(content);
+        _active.Add(toast);
+        ReassignSlots();
+        _windows.Present(toast, () => Release(toast));
     }
 
     private void Release(ToastViewModel toast)

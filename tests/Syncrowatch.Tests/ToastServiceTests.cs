@@ -185,6 +185,47 @@ public sealed class ToastServiceTests
         harness.Factory.Presented.ShouldBeEmpty();
     }
 
+    [Fact]
+    public void Show_PresentsOneOffToastImmediately()
+    {
+        var harness = new Harness();
+
+        harness.Service.Show(new ToastContent(ToastKind.LinkCopied, "Link copied", "notes.txt"));
+
+        var toast = harness.Factory.Presented.ShouldHaveSingleItem();
+        toast.Kind.ShouldBe(ToastKind.LinkCopied);
+        toast.Title.ShouldBe("Link copied");
+        toast.Message.ShouldBe("notes.txt");
+    }
+
+    [Fact]
+    public void Show_RepeatsAreNotCoalesced()
+    {
+        var harness = new Harness();
+        var content = new ToastContent(ToastKind.LinkCopied, "Link copied", "notes.txt");
+
+        harness.Service.Show(content);
+        harness.Service.Show(content);
+
+        harness.Factory.Presented.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public void Show_RespectsTheVisibleCapByDroppingTheOldest()
+    {
+        var harness = new Harness();
+        harness.Bus.Publish(new SyncNotification.MergeConflicted(Now, "main", ["one.md"]));
+        harness.Bus.Publish(new SyncNotification.MergeConflicted(Now, "main", ["two.md"]));
+        harness.Bus.Publish(new SyncNotification.MergeConflicted(Now, "main", ["three.md"]));
+
+        harness.Service.Show(new ToastContent(ToastKind.LinkCopied, "Link copied", "notes.txt"));
+
+        harness.Factory.Presented.Count.ShouldBe(4);
+        harness.Factory.Dismissed.Select(toast => toast.Message)
+            .ShouldBe(["1 file needs a pick — action needed (one.md)"]);
+        harness.Factory.LiveCount.ShouldBe(ToastService.MaxVisible);
+    }
+
     private sealed class Harness
     {
         public Harness()

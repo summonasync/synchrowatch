@@ -1,3 +1,4 @@
+using System.Globalization;
 using Synchro.Core;
 using Syncrowatch.Core.Config;
 
@@ -216,6 +217,54 @@ public sealed class GitLocal(IGitRunner runner) : ILocalGit
             return new Result<BlobContent>.Ok(await ReadObjectAsync(folder, objectSha, cancellationToken).ConfigureAwait(false));
         });
 
+    public Task<Result<IReadOnlyList<string>>> ListTrackedFiles(string folder, CancellationToken cancellationToken) =>
+        TransportResult.Capture<IReadOnlyList<string>>(async () =>
+        {
+            GuardFolder(folder);
+            var listing = await RunAsync(folder, ["ls-files", "-z"], cancellationToken).ConfigureAwait(false);
+            GitFailure.EnsureSuccess(listing, "read tracked files");
+            return new Result<IReadOnlyList<string>>.Ok(SplitNul(listing.StandardOutput));
+        });
+
+    public Task<Result<IReadOnlyList<GitLogEntry>>> LogPath(
+        string folder, string relativePath, int limit, int skip, CancellationToken cancellationToken) =>
+        TransportResult.Capture<IReadOnlyList<GitLogEntry>>(async () =>
+        {
+            GuardFolder(folder);
+            var path = GitArgumentGuards.RelativePath(relativePath);
+            if (limit < 1)
+            {
+                throw new GitOperationException(SyncError.Invalid("log limit must be a positive page size"));
+            }
+
+            if (skip < 0)
+            {
+                throw new GitOperationException(SyncError.Invalid("log skip must not be negative"));
+            }
+
+            var log = await RunAsync(folder,
+            [
+                "log", "--follow",
+                $"--max-count={limit}", $"--skip={skip}",
+                "--format=%H%x00%an%x00%ae%x00%aI%x00%s%x00",
+                "--", path
+            ], cancellationToken).ConfigureAwait(false);
+            GitFailure.EnsureSuccess(log, "read file history");
+            return new Result<IReadOnlyList<GitLogEntry>>.Ok(ParseLog(log.StandardOutput));
+        });
+
+    public Task<Result<IReadOnlyList<string>>> ChangedPaths(string folder, string fromRevision, string toRevision, CancellationToken cancellationToken) =>
+        TransportResult.Capture<IReadOnlyList<string>>(async () =>
+        {
+            GuardFolder(folder);
+            GitArgumentGuards.RefName(fromRevision);
+            GitArgumentGuards.RefName(toRevision);
+            var diff = await RunAsync(folder,
+                ["diff", "--name-only", "-z", fromRevision, toRevision], cancellationToken).ConfigureAwait(false);
+            GitFailure.EnsureSuccess(diff, "read changed paths");
+            return new Result<IReadOnlyList<string>>.Ok(SplitNul(diff.StandardOutput));
+        });
+
     public Task<Result<bool>> HasMergeInProgress(string folder, CancellationToken cancellationToken) =>
         TransportResult.Capture<bool>(async () =>
         {
@@ -342,6 +391,22 @@ public sealed class GitLocal(IGitRunner runner) : ILocalGit
             if (meta.Length == 3 && int.TryParse(meta[2], out var stage))
             {
                 entries.Add(new ConflictIndexEntry(stage, meta[1], path));
+            }
+        }
+
+        return entries;
+    }
+
+    internal static IReadOnlyList<GitLogEntry> ParseLog(string output)
+    {
+        var entries = new List<GitLogEntry>();
+        foreach (var record in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var fields = record.Split('\0', StringSplitOptions.RemoveEmptyEntries);
+            if (fields.Length == 5
+                && DateTimeOffset.TryParse(fields[3], CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var when))
+            {
+                entries.Add(new GitLogEntry(fields[0], fields[1], fields[2], when, fields[4]));
             }
         }
 

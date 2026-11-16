@@ -13,6 +13,7 @@ public sealed class ModeController : INotifyPropertyChanged, IDisposable
     private readonly IFileWatching _watching;
     private readonly ISyncEventBus? _bus;
     private readonly TimeProvider _time;
+    private readonly IPendingPathsSource? _pendingPaths;
     private readonly CancellationTokenSource _lifetime = new();
     private ChangeBatcher? _batcher;
     private SyncRunMode _mode = SyncRunMode.Auto;
@@ -27,13 +28,15 @@ public sealed class ModeController : INotifyPropertyChanged, IDisposable
         ISyncConfigStore configStore,
         IFileWatching watching,
         ISyncEventBus? bus = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IPendingPathsSource? pendingPaths = null)
     {
         _engine = engine;
         _configStore = configStore;
         _watching = watching;
         _bus = bus;
         _time = timeProvider ?? TimeProvider.System;
+        _pendingPaths = pendingPaths;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -83,6 +86,7 @@ public sealed class ModeController : INotifyPropertyChanged, IDisposable
         batcher.BatchReady += _engine.AcceptBatch;
         batcher.BatchReady += AnnounceDetected;
         _batcher = batcher;
+        _pendingPaths?.Capture(batcher);
         _watching.Start(_lifetime.Token);
         _engine.Start(_lifetime.Token);
         _configured = true;

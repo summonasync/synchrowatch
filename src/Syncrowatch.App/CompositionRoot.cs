@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Syncrowatch.App.Files;
 using Syncrowatch.App.History;
 using Syncrowatch.App.Notifications;
 using Syncrowatch.App.Tray;
@@ -58,6 +59,8 @@ public static class CompositionRoot
         services.AddSingleton(sp => new TrayStateWatcher(
             sp.GetRequiredService<ISyncEventBus>(), sp.GetRequiredService<ITrayStateUpdater>()));
         services.AddSingleton<IHistoryView>(sp => new HistoryWindowView(sp));
+        services.AddSingleton<IPendingPathsSource>(new PendingPathsSource());
+        services.AddSingleton<IFilesView>(sp => new FilesWindowView(() => new FilesWindow(sp)));
         services.AddSingleton<Func<SyncConfig, IFileWatching>>(config => new FolderWatcher(config.WatchedFolder));
         services.AddSingleton<Func<SyncConfig, ISyncEngine>>(sp => config => new SyncLoop(
             config,
@@ -67,6 +70,7 @@ public static class CompositionRoot
             sp.GetRequiredService<ISyncEventBus>()));
         services.AddTransient(sp => new SetupWizardWindow(sp));
         services.AddTransient(sp => new HistoryWindow(sp));
+        services.AddTransient(sp => new FilesWindow(sp));
         return services.BuildServiceProvider();
     }
 }
