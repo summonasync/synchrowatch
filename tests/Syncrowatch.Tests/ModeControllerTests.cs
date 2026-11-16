@@ -109,7 +109,6 @@ public sealed class ModeControllerTests : IDisposable
 
         _engine.AcceptedBatches.ShouldHaveSingleItem().ShouldBe(["notes.txt", "docs/spec.md"]);
         _engine.SyncCount.ShouldBe(0);
-        _engine.ConfirmCount.ShouldBe(0);
 
         await controller.SyncNowAsync();
 

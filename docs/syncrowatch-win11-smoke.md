@@ -61,11 +61,11 @@ Run after every release build from Ubuntu. Total time: about 30 minutes.
 5. After resolving everything, sync both folders once.
    Expected: both folders converge; working trees clean; the history window shows the resolution events.
 
-## 7. Semi-auto hold and push confirmation (spec AC: semi-auto)
+## 7. Semi-auto hold and sync now (spec AC: semi-auto)
 
 1. Switch the tray mode to semi-auto, make a local edit, let a cycle run.
-   Expected: a push-pending notification appears; the commit exists locally but the repo on github.com does not advance.
-2. Confirm the push from the tray prompt.
+   Expected: a push-pending notification appears; the commit exists locally but the repo on github.com does not advance; no confirmation prompt is shown.
+2. Click Sync now in the tray.
    Expected: the commit lands on github.com; a sync-completed notification follows.
 3. Switch to manual mode and touch a file.
    Expected: no watcher-driven commits, no pulls and no pushes until Sync now is clicked explicitly.

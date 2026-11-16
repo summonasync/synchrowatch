@@ -10,8 +10,6 @@ public sealed class FakeSyncEngine : ISyncEngine
 
     public int SyncCount { get; private set; }
 
-    public int ConfirmCount { get; private set; }
-
     public int PauseCount { get; private set; }
 
     public int ResumeCount { get; private set; }
@@ -44,13 +42,6 @@ public sealed class FakeSyncEngine : ISyncEngine
 
     public Task<Result<EngineStatus>> GetStatus(CancellationToken cancellationToken) =>
         Task.FromResult<Result<EngineStatus>>(new Result<EngineStatus>.Ok(new EngineStatus(StartCount > 0, null, null)));
-
-    public async Task<Result<SyncOutcome>> ConfirmPendingPush(CancellationToken cancellationToken)
-    {
-        ConfirmCount++;
-        await Task.Yield();
-        return new Result<SyncOutcome>.Ok(new SyncOutcome("main", "staged-from", "staged-to"));
-    }
 
     public void Dispose() => DisposeCount++;
 }

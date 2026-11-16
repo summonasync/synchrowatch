@@ -45,7 +45,6 @@ public class CompositionRootTests
         provider.GetService<ISyncEventBus>().ShouldNotBeNull();
         provider.GetService<ISyncEventStore>().ShouldNotBeNull();
         provider.GetService<IHistoryView>().ShouldNotBeNull();
-        provider.GetService<IPushConfirmation>().ShouldNotBeNull();
         provider.GetService<ISyncEngine>().ShouldBeNull();
         provider.GetService<IRemoteRepository>().ShouldBeNull();
     }

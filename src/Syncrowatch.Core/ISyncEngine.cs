@@ -19,6 +19,4 @@ public interface ISyncEngine : IDisposable
     Task<Result<SyncCycleReport>> SyncOnce(CancellationToken cancellationToken);
 
     Task<Result<EngineStatus>> GetStatus(CancellationToken cancellationToken);
-
-    Task<Result<SyncOutcome>> ConfirmPendingPush(CancellationToken cancellationToken);
 }

@@ -54,15 +54,13 @@ public static class CompositionRoot
         services.AddSingleton(sp => new TrayStateWatcher(
             sp.GetRequiredService<ISyncEventBus>(), sp.GetRequiredService<ITrayStateUpdater>()));
         services.AddSingleton<IHistoryView>(sp => new HistoryWindowView(sp));
-        services.AddSingleton<IPushConfirmation>(new PushConfirmationPrompt());
         services.AddSingleton<Func<SyncConfig, IFileWatching>>(config => new FolderWatcher(config.WatchedFolder));
         services.AddSingleton<Func<SyncConfig, ISyncEngine>>(sp => config => new SyncLoop(
             config,
             sp.GetRequiredService<Func<SyncConfig, IRemoteRepository>>()(config),
             sp.GetRequiredService<ILocalGit>(),
             sp.GetRequiredService<ISyncEventStore>(),
-            sp.GetRequiredService<ISyncEventBus>(),
-            pushConfirmation: sp.GetRequiredService<IPushConfirmation>()));
+            sp.GetRequiredService<ISyncEventBus>()));
         services.AddTransient(sp => new SetupWizardWindow(sp));
         services.AddTransient(sp => new HistoryWindow(sp));
         return services.BuildServiceProvider();
