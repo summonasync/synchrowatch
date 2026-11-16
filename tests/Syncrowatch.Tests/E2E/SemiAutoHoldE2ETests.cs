@@ -19,12 +19,16 @@ public sealed class SemiAutoHoldE2ETests : IDisposable
     public async Task SemiAuto_PushHeldUntilConfirmed_RejectedPushStaysPendingAndConvergesAfterMerge()
     {
         await _stand.BindAsync(_stand.CloneB, SyncRunMode.SemiAuto);
-        using var loopB = await _stand.LoopForAsync(_stand.CloneB);
+        var time = new FakeTimeProvider();
+        using var loopB = await _stand.LoopForAsync(_stand.CloneB, time);
+        loopB.Start();
 
         File.WriteAllText(Path.Combine(_stand.CloneB, HeldFile), "quarterly numbers, draft\n");
         loopB.AcceptBatch([HeldFile]);
-        (await loopB.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>()
-            .Value.Pushed.ShouldBeNull();
+        time.Advance(SyncConfig.DefaultPollInterval);
+        await SyncE2EStand.AwaitAsync(
+            () => Task.FromResult(_stand.SnapshotNotifications().OfType<SyncNotification.PushPending>().Any()),
+            "the held push to stage");
 
         var heldSha = GitCli.Head(_stand.CloneB);
         RemoteTip().ShouldNotBe(heldSha);
@@ -43,7 +47,10 @@ public sealed class SemiAutoHoldE2ETests : IDisposable
         rejected.ShouldBeOfType<Result<SyncOutcome>.Fail>().Error.Code.ShouldBe("conflict");
         RemoteTip().ShouldBe(advancedTip);
 
-        (await loopB.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
+        time.Advance(SyncConfig.DefaultPollInterval);
+        await SyncE2EStand.AwaitAsync(
+            () => Task.FromResult(_stand.SnapshotNotifications().OfType<SyncNotification.PushPending>().Count() == 2),
+            "the merged head to re-stage");
         var mergedSha = GitCli.Head(_stand.CloneB);
         var pendings = _stand.SnapshotNotifications().OfType<SyncNotification.PushPending>().ToList();
         pendings.Count.ShouldBe(2);

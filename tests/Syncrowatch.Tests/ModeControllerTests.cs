@@ -117,6 +117,20 @@ public sealed class ModeControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task SyncNow_FlushesTheDebounceWindow_BeforeCycling()
+    {
+        await _store.Save(Sample(SyncRunMode.Manual), CancellationToken.None);
+        using var controller = Build();
+        await controller.LaunchAsync();
+
+        _watching.Emit("notes.txt");
+        await controller.SyncNowAsync();
+
+        _engine.AcceptedBatches.ShouldHaveSingleItem().ShouldBe(["notes.txt"]);
+        _engine.SyncCount.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task Pause_SuspendsEngineAndWatcher_Resume_RestoresBoth()
     {
         await _store.Save(Sample(SyncRunMode.Auto), CancellationToken.None);

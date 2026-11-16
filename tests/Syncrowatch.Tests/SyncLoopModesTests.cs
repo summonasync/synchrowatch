@@ -131,7 +131,7 @@ public sealed class SyncLoopModesTests : IDisposable
     }
 
     [Fact]
-    public async Task SyncOnce_SemiAuto_PendingWithQueuedEdits_PullSucceedsAndBatchStaysIntact()
+    public async Task Tick_SemiAuto_PendingPushFreezesQueuedEdits_ConfirmationReleasesTheCommit()
     {
         var remote = Substitute.For<IRemoteRepository>();
         var unchanged = new Result<SyncOutcome>.Ok(new SyncOutcome("main", "sha0", "sha0"));
@@ -145,9 +145,10 @@ public sealed class SyncLoopModesTests : IDisposable
                 new Result<bool>.Ok(true),
                 new Result<bool>.Ok(false),
                 new Result<bool>.Ok(true));
-        using var loop = BuildLoop(local, remote: remote, mode: SyncRunMode.SemiAuto);
+        var time = new FakeTimeProvider();
+        using var loop = BuildLoop(local, time: time, remote: remote, mode: SyncRunMode.SemiAuto);
 
-        (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
+        await StagePendingPushAsync(loop, time);
         loop.AcceptBatch(["more.txt"]);
 
         (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
@@ -167,7 +168,7 @@ public sealed class SyncLoopModesTests : IDisposable
     }
 
     [Fact]
-    public async Task SyncOnce_SemiAuto_DirtyTreeRefusingMerge_SkipsMergeQuietlyWhilePending()
+    public async Task Tick_SemiAuto_DirtyTreeRefusingMerge_SkipsMergeQuietlyWhilePending()
     {
         var remote = Substitute.For<IRemoteRepository>();
         var unchanged = new Result<SyncOutcome>.Ok(new SyncOutcome("main", "sha0", "sha0"));
@@ -183,9 +184,10 @@ public sealed class SyncLoopModesTests : IDisposable
                 new Result<bool>.Ok(true),
                 new Result<bool>.Ok(false),
                 new Result<bool>.Ok(false));
-        using var loop = BuildLoop(local, remote: remote, mode: SyncRunMode.SemiAuto);
+        var time = new FakeTimeProvider();
+        using var loop = BuildLoop(local, time: time, remote: remote, mode: SyncRunMode.SemiAuto);
 
-        (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
+        await StagePendingPushAsync(loop, time);
         loop.AcceptBatch(["more.txt"]);
 
         (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
@@ -197,7 +199,7 @@ public sealed class SyncLoopModesTests : IDisposable
     }
 
     [Fact]
-    public async Task SyncOnce_SemiAuto_PullRefusesOverlappingPaths_TypedFailureKeepsPendingAndResumes()
+    public async Task Tick_SemiAuto_PullRefusesOverlappingPaths_TypedFailureKeepsPendingAndResumes()
     {
         var remote = Substitute.For<IRemoteRepository>();
         var unchanged = new Result<SyncOutcome>.Ok(new SyncOutcome("main", "sha0", "sha0"));
@@ -209,9 +211,10 @@ public sealed class SyncLoopModesTests : IDisposable
         remote.Push("main", Arg.Any<CancellationToken>())
             .Returns(new Result<SyncOutcome>.Ok(new SyncOutcome("main", "remote-sha", "shaHead")));
         var local = CleanLocal();
-        using var loop = BuildLoop(local, remote: remote, mode: SyncRunMode.SemiAuto);
+        var time = new FakeTimeProvider();
+        using var loop = BuildLoop(local, time: time, remote: remote, mode: SyncRunMode.SemiAuto);
 
-        (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
+        await StagePendingPushAsync(loop, time);
         loop.AcceptBatch(["notes.txt"]);
 
         var outcome = await loop.SyncOnce(CancellationToken.None);
@@ -232,14 +235,15 @@ public sealed class SyncLoopModesTests : IDisposable
     }
 
     [Fact]
-    public async Task SemiAuto_ConfirmationSeamBreaks_FailureSurfacesOnBusAndInHistory()
+    public async Task Tick_SemiAuto_ConfirmationSeamBreaks_FailureSurfacesOnBusAndInHistory()
     {
         var confirmation = Substitute.For<IPushConfirmation>();
         confirmation.RequestAsync(Arg.Any<PendingPush>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromException<bool>(new InvalidOperationException("dialog crashed")));
-        using var loop = BuildLoop(CleanLocal(), mode: SyncRunMode.SemiAuto, confirmation: confirmation);
+        var time = new FakeTimeProvider();
+        using var loop = BuildLoop(CleanLocal(), time: time, mode: SyncRunMode.SemiAuto, confirmation: confirmation);
 
-        (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
+        await StagePendingPushAsync(loop, time);
         await AwaitAsync(() => SnapshotNotifications().OfType<SyncNotification.SyncFailed>().Any());
 
         SnapshotNotifications().OfType<SyncNotification.SyncFailed>().Single().Error.Code.ShouldBe("push_confirm_failed");
@@ -254,8 +258,9 @@ public sealed class SyncLoopModesTests : IDisposable
             .Returns(new Result<SyncOutcome>.Ok(new SyncOutcome("main", "sha0", "sha0")));
         remote.Push("main", Arg.Any<CancellationToken>())
             .Returns(new Result<SyncOutcome>.Ok(new SyncOutcome("main", "remote-sha", "shaHead")));
-        using var loop = BuildLoop(CleanLocal(), remote: remote, mode: SyncRunMode.SemiAuto);
-        (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
+        var time = new FakeTimeProvider();
+        using var loop = BuildLoop(CleanLocal(), time: time, remote: remote, mode: SyncRunMode.SemiAuto);
+        await StagePendingPushAsync(loop, time);
 
         (await loop.GetStatus(CancellationToken.None)).ShouldBeOfType<Result<EngineStatus>.Ok>()
             .Value.LastCycleUtc.ShouldBeNull();
@@ -268,20 +273,39 @@ public sealed class SyncLoopModesTests : IDisposable
     }
 
     [Fact]
-    public async Task SyncOnce_SemiAuto_AheadOfRemote_HoldsPushAndAnnouncesPending()
+    public async Task SyncOnce_SemiAuto_ExplicitCycle_PushesWithoutStaging()
     {
         var remote = Substitute.For<IRemoteRepository>();
         remote.Pull("main", Arg.Any<CancellationToken>())
             .Returns(new Result<SyncOutcome>.Ok(new SyncOutcome("main", "sha0", "sha0")));
+        remote.Push("main", Arg.Any<CancellationToken>())
+            .Returns(new Result<SyncOutcome>.Ok(new SyncOutcome("main", "remote-sha", "shaHead")));
         using var loop = BuildLoop(CleanLocal(), remote: remote, mode: SyncRunMode.SemiAuto);
 
         var outcome = await loop.SyncOnce(CancellationToken.None);
 
-        var ok = outcome.ShouldBeOfType<Result<SyncCycleReport>.Ok>();
-        ok.Value.Pushed.ShouldBeNull();
-        await remote.DidNotReceive().Push(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        outcome.ShouldBeOfType<Result<SyncCycleReport>.Ok>().Value.Pushed.ShouldNotBeNull()
+            .ToSha.ShouldBe("shaHead");
+        await remote.Received(1).Push(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        SnapshotNotifications().OfType<SyncNotification.PushPending>().ShouldBeEmpty();
+        (await loop.ConfirmPendingPush(CancellationToken.None))
+            .ShouldBeOfType<Result<SyncOutcome>.Fail>().Error.Code.ShouldBe("no_pending_push");
+    }
+
+    [Fact]
+    public async Task Tick_SemiAuto_AheadOfRemote_HoldsPushAndAnnouncesPending()
+    {
+        var remote = Substitute.For<IRemoteRepository>();
+        remote.Pull("main", Arg.Any<CancellationToken>())
+            .Returns(new Result<SyncOutcome>.Ok(new SyncOutcome("main", "sha0", "sha0")));
+        var time = new FakeTimeProvider();
+        using var loop = BuildLoop(CleanLocal(), time: time, remote: remote, mode: SyncRunMode.SemiAuto);
+
+        await StagePendingPushAsync(loop, time);
+
         SnapshotNotifications().ShouldHaveSingleItem().ShouldBeOfType<SyncNotification.PushPending>()
             .Push.Sha.ShouldBe("shaHead");
+        await remote.DidNotReceive().Push(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -307,8 +331,9 @@ public sealed class SyncLoopModesTests : IDisposable
             .Returns(new Result<SyncOutcome>.Ok(new SyncOutcome("main", "sha0", "sha0")));
         remote.Push("main", Arg.Any<CancellationToken>())
             .Returns(new Result<SyncOutcome>.Ok(new SyncOutcome("main", "remote-sha", "shaHead")));
-        using var loop = BuildLoop(CleanLocal(), remote: remote, mode: SyncRunMode.SemiAuto);
-        (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
+        var time = new FakeTimeProvider();
+        using var loop = BuildLoop(CleanLocal(), time: time, remote: remote, mode: SyncRunMode.SemiAuto);
+        await StagePendingPushAsync(loop, time);
 
         var confirmed = await loop.ConfirmPendingPush(CancellationToken.None);
 
@@ -333,8 +358,9 @@ public sealed class SyncLoopModesTests : IDisposable
             .Returns(
                 new Result<SyncOutcome>.Fail(new SyncError("rejected", "non-fast-forward")),
                 new Result<SyncOutcome>.Ok(new SyncOutcome("main", "remote-sha", "shaHead")));
-        using var loop = BuildLoop(CleanLocal(), remote: remote, mode: SyncRunMode.SemiAuto);
-        (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
+        var time = new FakeTimeProvider();
+        using var loop = BuildLoop(CleanLocal(), time: time, remote: remote, mode: SyncRunMode.SemiAuto);
+        await StagePendingPushAsync(loop, time);
 
         (await loop.ConfirmPendingPush(CancellationToken.None)).ShouldBeOfType<Result<SyncOutcome>.Fail>();
         (await loop.ConfirmPendingPush(CancellationToken.None)).ShouldBeOfType<Result<SyncOutcome>.Ok>();
@@ -343,14 +369,18 @@ public sealed class SyncLoopModesTests : IDisposable
     }
 
     [Fact]
-    public async Task SyncOnce_SemiAuto_PendingPushFreezesLocalCommits_ButKeepsPulling()
+    public async Task Tick_SemiAuto_PendingPushFreezesLocalCommits_ButKeepsPulling()
     {
         var remote = Substitute.For<IRemoteRepository>();
         remote.Pull("main", Arg.Any<CancellationToken>())
             .Returns(new Result<SyncOutcome>.Ok(new SyncOutcome("main", "shaRemote", "shaRemote")));
+        remote.Push("main", Arg.Any<CancellationToken>())
+            .Returns(new Result<SyncOutcome>.Ok(new SyncOutcome("main", "remote-sha", "shaHead")));
+        var time = new FakeTimeProvider();
         var local = CleanLocal();
-        using var loop = BuildLoop(local, remote: remote, mode: SyncRunMode.SemiAuto);
-        (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
+        using var loop = BuildLoop(local, time: time, remote: remote, mode: SyncRunMode.SemiAuto);
+
+        await StagePendingPushAsync(loop, time);
         loop.AcceptBatch(["more.txt"]);
 
         (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
@@ -359,7 +389,6 @@ public sealed class SyncLoopModesTests : IDisposable
             Arg.Any<string>(), Arg.Any<CommitIdentity>(), Arg.Any<string>(),
             Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
         await remote.Received(2).Pull(Arg.Any<string>(), Arg.Any<CancellationToken>());
-        await remote.DidNotReceive().Push(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -368,8 +397,9 @@ public sealed class SyncLoopModesTests : IDisposable
         var remote = Substitute.For<IRemoteRepository>();
         remote.Pull("main", Arg.Any<CancellationToken>())
             .Returns(new Result<SyncOutcome>.Ok(new SyncOutcome("main", "sha0", "sha0")));
-        using var loop = BuildLoop(CleanLocal(), remote: remote, mode: SyncRunMode.SemiAuto);
-        (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
+        var time = new FakeTimeProvider();
+        using var loop = BuildLoop(CleanLocal(), time: time, remote: remote, mode: SyncRunMode.SemiAuto);
+        await StagePendingPushAsync(loop, time);
 
         loop.SetMode(SyncRunMode.Auto);
 
@@ -379,7 +409,7 @@ public sealed class SyncLoopModesTests : IDisposable
     }
 
     [Fact]
-    public async Task SemiAuto_ConfirmationSeamAccepts_PushesWithoutManualConfirm()
+    public async Task Tick_SemiAuto_ConfirmationSeamAccepts_PushesWithoutManualConfirm()
     {
         var remote = Substitute.For<IRemoteRepository>();
         remote.Pull("main", Arg.Any<CancellationToken>())
@@ -388,9 +418,10 @@ public sealed class SyncLoopModesTests : IDisposable
             .Returns(new Result<SyncOutcome>.Ok(new SyncOutcome("main", "remote-sha", "shaHead")));
         var confirmation = Substitute.For<IPushConfirmation>();
         confirmation.RequestAsync(Arg.Any<PendingPush>(), Arg.Any<CancellationToken>()).Returns(true);
-        using var loop = BuildLoop(CleanLocal(), remote: remote, mode: SyncRunMode.SemiAuto, confirmation: confirmation);
+        var time = new FakeTimeProvider();
+        using var loop = BuildLoop(CleanLocal(), time: time, remote: remote, mode: SyncRunMode.SemiAuto, confirmation: confirmation);
 
-        (await loop.SyncOnce(CancellationToken.None)).ShouldBeOfType<Result<SyncCycleReport>.Ok>();
+        await StagePendingPushAsync(loop, time);
         await AwaitAsync(() => SnapshotNotifications().OfType<SyncNotification.SyncCompleted>().Any());
 
         await remote.Received(1).Push(Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -411,6 +442,13 @@ public sealed class SyncLoopModesTests : IDisposable
         var outcome = await loop.SyncOnce(CancellationToken.None);
 
         outcome.ShouldBeOfType<Result<SyncCycleReport>.Ok>().Value.Pushed.ShouldNotBeNull().ToSha.ShouldBe("shaHead");
+    }
+
+    private async Task StagePendingPushAsync(SyncLoop loop, FakeTimeProvider time)
+    {
+        loop.Start();
+        time.Advance(SyncConfig.DefaultPollInterval);
+        await AwaitAsync(() => SnapshotNotifications().OfType<SyncNotification.PushPending>().Any());
     }
 
     private SyncLoop BuildLoop(

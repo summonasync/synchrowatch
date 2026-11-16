@@ -31,6 +31,7 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
     private bool _started;
     private int _paused;
     private int _mode;
+    private int _explicitCycle;
     private PendingPush? _pendingPush;
     private DateTimeOffset? _lastCycleUtc;
     private SyncError? _lastError;
@@ -212,10 +213,12 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
 
         try
         {
+            Volatile.Write(ref _explicitCycle, 1);
             return await CycleAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
+            Volatile.Write(ref _explicitCycle, 0);
             Interlocked.Exchange(ref _inCycle, 0);
         }
     }
@@ -293,6 +296,7 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
     private async Task<Result<SyncCycleReport>> CycleAsync(CancellationToken cancellationToken)
     {
         var started = _time.GetUtcNow();
+        var explicitCycle = Volatile.Read(ref _explicitCycle) == 1;
         var batchError = await CommitPendingBatchAsync(cancellationToken).ConfigureAwait(false);
         if (batchError is not null)
         {
@@ -357,7 +361,7 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
         SyncOutcome? pushed = null;
         if (headOk.Value.Sha != tipOk.Value)
         {
-            if ((SyncRunMode)Volatile.Read(ref _mode) == SyncRunMode.SemiAuto)
+            if (!explicitCycle && (SyncRunMode)Volatile.Read(ref _mode) == SyncRunMode.SemiAuto)
             {
                 return StagePush(started, pulledOutcome, headOk.Value.Sha);
             }

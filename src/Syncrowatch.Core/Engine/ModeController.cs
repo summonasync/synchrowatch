@@ -105,6 +105,7 @@ public sealed class ModeController : INotifyPropertyChanged, IDisposable
     public async Task<Result<SyncCycleReport>> SyncNowAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed == 1, this);
+        _batcher?.FlushNow();
         return await _engine.SyncOnce(cancellationToken).ConfigureAwait(false);
     }
 

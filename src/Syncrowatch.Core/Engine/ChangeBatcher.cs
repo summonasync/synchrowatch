@@ -38,6 +38,8 @@ public sealed class ChangeBatcher : IDisposable
         }
     }
 
+    public void FlushNow() => Flush(null);
+
     public void Accept(FolderChange change)
     {
         var relative = change.RelativePath.Replace('\\', '/');

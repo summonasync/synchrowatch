@@ -78,7 +78,7 @@ public sealed class SyncE2EStand : IDisposable
         saved.ShouldBeOfType<Result<SyncConfig>.Ok>();
     }
 
-    public async Task<SyncLoop> LoopForAsync(string clone)
+    public async Task<SyncLoop> LoopForAsync(string clone, TimeProvider? time = null)
     {
         var config = await LoadBindingAsync(clone);
         var loop = new SyncLoop(
@@ -86,7 +86,8 @@ public sealed class SyncE2EStand : IDisposable
             new GitHubRepository(config, new CredentialStore(DataDirectory), new GitProcess()),
             new GitLocal(new GitProcess()),
             HistoryFor(clone),
-            Bus);
+            Bus,
+            time);
         _loops.Add(loop);
         return loop;
     }
