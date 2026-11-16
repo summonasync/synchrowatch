@@ -53,7 +53,7 @@ public sealed class TrayStateTracker : INotifyPropertyChanged, IDisposable
             {
                 var label = _state switch
                 {
-                    TrayState.Syncing => "syncing",
+                    TrayState.Syncing => "Synchronizing…",
                     TrayState.Conflict => "merge conflict",
                     TrayState.Error => "error",
                     _ => "idle"

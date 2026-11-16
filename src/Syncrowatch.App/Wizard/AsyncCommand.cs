@@ -16,11 +16,11 @@ public sealed class AsyncCommand(
 
     public bool CanExecute(object? parameter) => !_running && _canExecute();
 
-    public void Execute(object? parameter) => _ = RunAsync(parameter);
+    public void Execute(object? parameter) => _ = ExecuteAsync(parameter);
 
     public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 
-    private async Task RunAsync(object? parameter)
+    public async Task ExecuteAsync(object? parameter)
     {
         if (!CanExecute(parameter))
         {

@@ -41,12 +41,12 @@ public sealed class TrayController : IDisposable
         _services.GetRequiredService<TrayStateWatcher>();
         _relayDriver = _services.GetRequiredService<RelayPollDriver>();
         _relayDriver.Start();
+        _syncCommand = new AsyncCommand(RunSyncNowAsync, ReadyForSync, HandleCommandFailure);
         _detection = new DetectionPromptController(
             _services.GetRequiredService<ISyncEventBus>(),
             new DetectionPrompt(),
-            RunSyncNowAsync,
+            () => _syncCommand.ExecuteAsync(null),
             HandleCommandFailure);
-        _syncCommand = new AsyncCommand(RunSyncNowAsync, ReadyForSync, HandleCommandFailure);
         _pauseItem = MenuActionItem("Pause", TogglePause);
         _autoItem = ModeItem("Auto", SyncRunMode.Auto);
         _manualItem = ModeItem("Manual", SyncRunMode.Manual);

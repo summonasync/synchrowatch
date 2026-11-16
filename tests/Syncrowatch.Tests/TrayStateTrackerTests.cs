@@ -31,10 +31,21 @@ public sealed class TrayStateTrackerTests : IDisposable
         _tracker.BeginSync();
 
         _tracker.State.ShouldBe(TrayState.Syncing);
-        _tracker.ToolTipText.ShouldBe("Syncrowatch — syncing");
+        _tracker.ToolTipText.ShouldBe("Syncrowatch — Synchronizing…");
 
         _bus.Publish(new SyncNotification.SyncCompleted(DateTimeOffset.UtcNow, Quiet()));
         _tracker.State.ShouldBe(TrayState.Idle);
+    }
+
+    [Fact]
+    public void SettleSync_SuccessfulOutcome_BackToIdle()
+    {
+        _tracker.BeginSync();
+
+        _tracker.SettleSync(new Result<SyncCycleReport>.Ok(Quiet()));
+
+        _tracker.State.ShouldBe(TrayState.Idle);
+        _tracker.ToolTipText.ShouldBe("Syncrowatch — idle");
     }
 
     [Fact]
