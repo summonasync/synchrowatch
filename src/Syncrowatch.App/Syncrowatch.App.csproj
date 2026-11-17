@@ -8,6 +8,7 @@
     <Version>0.1.0</Version>
     <AssemblyName>syncrowatch</AssemblyName>
     <RootNamespace>Syncrowatch.App</RootNamespace>
+    <ApplicationIcon>Assets\app\syncrowatch.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

@@ -118,6 +118,19 @@ public class CompositionRootTests
         updater.ShouldBeOfType<MarshalledTrayStateUpdater>();
     }
 
+    [Fact]
+    public void Build_RegistersTrayIconCacheOnTheAssetLoader()
+    {
+        var provider = CompositionRoot.Build();
+
+        provider.GetService<TrayIconCache>().ShouldNotBeNull();
+        provider.GetService<ITrayIconLoader>().ShouldBeOfType<AssetLoaderTrayIconLoader>();
+
+        var first = provider.GetRequiredService<TrayIconCache>();
+        var second = provider.GetRequiredService<TrayIconCache>();
+        first.ShouldBeSameAs(second);
+    }
+
     private static SyncConfig SampleConfig(string remoteUrl) => new()
     {
         WatchedFolder = Path.GetTempPath(),
