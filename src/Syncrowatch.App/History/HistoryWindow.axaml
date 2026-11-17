@@ -23,12 +23,12 @@
       <ItemsControl ItemsSource="{Binding Entries}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:HistoryEntryViewModel">
-            <Border Padding="0,7" BorderBrush="#33808080" BorderThickness="0,0,0,1">
+            <Border Padding="0,7" BorderBrush="{DynamicResource BrandLineBrush}" BorderThickness="0,0,0,1">
               <Grid ColumnDefinitions="86,72,*,200">
                 <TextBlock Text="{Binding Label}" FontWeight="SemiBold" FontSize="12" />
-                <TextBlock Grid.Column="1" Text="{Binding TimeText}" Foreground="Gray" FontSize="11" />
+                <TextBlock Grid.Column="1" Text="{Binding TimeText}" Foreground="{DynamicResource BrandAshBrush}" FontSize="11" />
                 <TextBlock Grid.Column="2" Text="{Binding Detail}" FontSize="12" TextWrapping="Wrap" />
-                <TextBlock Grid.Column="3" Text="{Binding Files}" FontSize="11" Foreground="#606060"
+                <TextBlock Grid.Column="3" Text="{Binding Files}" FontSize="11" Foreground="{DynamicResource BrandAshBrush}"
                            TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
               </Grid>
             </Border>
@@ -44,8 +44,8 @@
           <DataTemplate x:DataType="vm:PendingConflictViewModel">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBlock Text="{Binding Path}" FontWeight="SemiBold" FontSize="12" />
-              <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="Gray" />
-              <TextBlock Text="{Binding TimeText}" FontSize="11" Foreground="Gray" />
+              <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="{DynamicResource BrandAshBrush}" />
+              <TextBlock Text="{Binding TimeText}" FontSize="11" Foreground="{DynamicResource BrandAshBrush}" />
             </StackPanel>
           </DataTemplate>
         </ItemsControl.ItemTemplate>

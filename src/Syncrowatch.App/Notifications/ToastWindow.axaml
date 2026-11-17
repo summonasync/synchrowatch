@@ -10,14 +10,14 @@
         ShowActivated="False"
         SystemDecorations="None"
         Topmost="True"
-        Background="#F224292F">
+        Background="{DynamicResource BrandInk2Brush}">
   <StackPanel Margin="14,10" Spacing="4">
-    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="White" FontSize="13" />
-    <TextBlock Text="{Binding Message}" Foreground="#DDD8D2" FontSize="12" TextWrapping="Wrap" />
+    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="{DynamicResource BrandParchmentBrush}" FontSize="13" />
+    <TextBlock Text="{Binding Message}" Foreground="{DynamicResource BrandParchmentBrush}" FontSize="12" TextWrapping="Wrap" />
     <TextBlock Text="{Binding Command}"
                FontFamily="Consolas, DejaVu Sans Mono, monospace"
                FontSize="11"
-               Foreground="#7FD1B9"
+               Foreground="{DynamicResource BrandAshBrush}"
                TextWrapping="NoWrap"
                IsVisible="{Binding HasCommand}" />
   </StackPanel>
