@@ -81,7 +81,9 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         var loaded = await _configStore.Load(cancellationToken).ConfigureAwait(true);
         if (loaded is not Result<SyncConfig>.Ok ok)
         {
-            ErrorMessage = "settings could not be read";
+            ErrorMessage = loaded is Result<SyncConfig>.Fail failure
+                ? failure.Error.Message
+                : "settings could not be read";
             return;
         }
 

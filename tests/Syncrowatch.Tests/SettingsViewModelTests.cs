@@ -110,7 +110,7 @@ public class SettingsViewModelTests
         await viewModel.ReloadAsync();
 
         viewModel.HasError.ShouldBeTrue();
-        viewModel.ErrorMessage.ShouldNotBeNull().ShouldContain("could not be read");
+        viewModel.ErrorMessage.ShouldBe("settings file absent");
     }
 
     [Fact]
