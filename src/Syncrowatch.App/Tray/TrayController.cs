@@ -20,6 +20,7 @@ public sealed class TrayController : IDisposable
     private readonly TrayIcon _icon;
     private readonly IClassicDesktopStyleApplicationLifetime _desktop;
     private readonly TrayStateTracker _tracker;
+    private readonly TrayIconCache _icons;
     private readonly AsyncCommand _syncCommand;
     private readonly NativeMenuItem _pauseItem;
     private readonly NativeMenuItem _autoItem;
@@ -38,6 +39,7 @@ public sealed class TrayController : IDisposable
         _desktop = desktop;
         _tracker = services.GetRequiredService<TrayStateTracker>();
         _tracker.PropertyChanged += OnTrayStateChanged;
+        _icons = services.GetRequiredService<TrayIconCache>();
         _syncNow = services.GetRequiredService<SyncNowRunner>();
         _services.GetRequiredService<ToastService>();
         _services.GetRequiredService<TrayStateWatcher>();
@@ -72,6 +74,7 @@ public sealed class TrayController : IDisposable
 
     public async Task LaunchAsync()
     {
+        RefreshTrayVisuals();
         try
         {
             await RebuildAsync().ConfigureAwait(true);
@@ -264,8 +267,23 @@ public sealed class TrayController : IDisposable
         _icon.ToolTipText = _controller is null ? "Syncrowatch — not configured" : _tracker.ToolTipText;
     }
 
+    private void RefreshTrayVisuals()
+    {
+        SwapIcon();
+        RefreshTooltip();
+    }
+
+    private void SwapIcon()
+    {
+        var icon = _icons.IconFor(_tracker.State, _tracker.PushPending);
+        if (icon is not null && !ReferenceEquals(_icon.Icon, icon))
+        {
+            _icon.Icon = icon;
+        }
+    }
+
     private void OnTrayStateChanged(object? sender, PropertyChangedEventArgs e) =>
-        Dispatcher.UIThread.Post(RefreshTooltip);
+        Dispatcher.UIThread.Post(RefreshTrayVisuals);
 
     private void OnControllerPropertyChanged(object? sender, PropertyChangedEventArgs e) =>
         Dispatcher.UIThread.Post(RefreshTray);

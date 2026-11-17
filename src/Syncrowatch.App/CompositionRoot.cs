@@ -47,6 +47,10 @@ public static class CompositionRoot
             sp.GetRequiredService<ISyncEventBus>()));
         services.AddSingleton<RelayPollDriver>();
         services.AddSingleton<TrayStateTracker>();
+        services.AddSingleton<ITrayIconLoader>(new AssetLoaderTrayIconLoader());
+        services.AddSingleton(sp => new TrayIconCache(
+            sp.GetRequiredService<ITrayIconLoader>(),
+            TrayIconVariantSelector.Detect()));
         services.AddSingleton(sp => new ExplicitSyncFeedback(sp.GetRequiredService<ISyncEventBus>()));
         services.AddSingleton(sp => new SyncNowRunner(
             sp.GetRequiredService<TrayStateTracker>(),
