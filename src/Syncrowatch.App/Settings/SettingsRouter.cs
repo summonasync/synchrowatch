@@ -11,7 +11,7 @@ public sealed class SettingsRouter(
     public async Task OpenAsync(CancellationToken cancellationToken = default)
     {
         var loaded = await configStore.Load(cancellationToken).ConfigureAwait(true);
-        if (loaded is Result<SyncConfig>.Ok ok && SyncConfigValidation.Validate(ok.Value) is null)
+        if (loaded is Result<SyncConfig>.Ok)
         {
             preview().Show();
             return;

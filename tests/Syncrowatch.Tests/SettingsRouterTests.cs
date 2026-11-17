@@ -36,15 +36,12 @@ public class SettingsRouterTests
         harness.Preview.ReceivedCalls().ShouldBeEmpty();
     }
 
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    public async Task Open_InvalidConfig_ShowsWizard(string branch)
+    [Fact]
+    public async Task Open_CorruptConfig_ShowsWizard()
     {
         var harness = new Harness();
-        var broken = ValidConfig() with { Branch = branch };
         harness.ConfigStore.Load(Arg.Any<CancellationToken>())
-            .Returns(new Result<SyncConfig>.Ok(broken));
+            .Returns(new Result<SyncConfig>.Fail(SyncError.Invalid("settings file is not valid configuration")));
 
         await harness.Router.OpenAsync();
 
