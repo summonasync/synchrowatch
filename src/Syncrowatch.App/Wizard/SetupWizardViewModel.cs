@@ -12,6 +12,8 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
 {
     private const string FallbackBranch = "main";
     private const string UnacceptableUrlMessage = "remote url must be an https or ssh git address";
+    private const string PublicRepoCode = "public_repo";
+    private const string InvalidUrlKind = "invalid_url";
 
     private readonly Func<SyncConfig, IRemoteRepository> _remoteFactory;
     private readonly Func<SyncConfig, IBootstrapper> _bootstrapperFactory;
@@ -28,6 +30,8 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
     private string _identityName = CommitIdentity.Default.Name;
     private string _identityEmail = CommitIdentity.Default.Email;
     private bool _repoValidated;
+    private string? _repoErrorKind;
+    private BootstrapDirection? _chosenDirection;
     private bool _tokenStored;
     private bool _bootstrapCompleted;
     private bool _busy;
@@ -97,6 +101,38 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
 
     public bool IsCompleted => _step == WizardStep.Completed;
 
+    public bool RepoValidated => _repoValidated;
+
+    public string Branch => _branch;
+
+    public string? RepoErrorKind => _repoErrorKind;
+
+    public bool RepoErrorIsPublic => _repoErrorKind == PublicRepoCode;
+
+    public bool TokenDone => _step > WizardStep.AccessToken;
+
+    public bool RepositoryDone => _step > WizardStep.Repository;
+
+    public bool FolderDone => _step > WizardStep.Folder;
+
+    public bool PreferencesDone => _step > WizardStep.Preferences;
+
+    public bool BootstrapDone => _step > WizardStep.Bootstrap;
+
+    public bool PlanIsCheckoutRemote => _plan is BootstrapPlan.CheckoutRemote;
+
+    public bool PlanIsPublishFolder => _plan is BootstrapPlan.PublishFolder;
+
+    public bool PlanIsWatchEmpty => _plan is BootstrapPlan.WatchEmpty;
+
+    public bool HasPlan => _plan is not null;
+
+    public bool HasProgress => !string.IsNullOrEmpty(_progress);
+
+    public bool IsRepoWinsChosen => _chosenDirection == BootstrapDirection.RepoWins;
+
+    public bool IsFolderWinsChosen => _chosenDirection == BootstrapDirection.FolderWins;
+
     public string AccessToken
     {
         get => _accessToken;
@@ -117,6 +153,10 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
             if (SetField(ref _remoteUrl, value))
             {
                 _repoValidated = false;
+                _repoErrorKind = null;
+                Notify(nameof(RepoValidated));
+                Notify(nameof(RepoErrorKind));
+                Notify(nameof(RepoErrorIsPublic));
                 RefreshCommands();
             }
         }
@@ -193,7 +233,13 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
     public string? Progress
     {
         get => _progress;
-        set => SetField(ref _progress, value);
+        set
+        {
+            if (SetField(ref _progress, value))
+            {
+                Notify(nameof(HasProgress));
+            }
+        }
     }
 
     public bool IsBusy
@@ -255,13 +301,16 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
         if (!SyncConfigValidation.IsAcceptableRemoteUrl(RemoteUrl.Trim()))
         {
             _repoValidated = false;
+            _repoErrorKind = InvalidUrlKind;
             ErrorMessage = UnacceptableUrlMessage;
+            NotifyAll();
             RefreshCommands();
             return;
         }
 
         IsBusy = true;
         Progress = "Checking the repository…";
+        ErrorMessage = null;
         var remote = _remoteFactory(AssembleConfig());
         var outcome = await remote.ValidateRepository(CancellationToken.None).ConfigureAwait(true);
         IsBusy = false;
@@ -271,18 +320,22 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
             case Result<RemoteValidation>.Ok probe when probe.Value.Reachable:
                 _branch = probe.Value.DefaultBranch ?? FallbackBranch;
                 _repoValidated = true;
+                _repoErrorKind = null;
                 ErrorMessage = null;
                 break;
             case Result<RemoteValidation>.Fail refusal:
                 _repoValidated = false;
+                _repoErrorKind = refusal.Error.Code;
                 ErrorMessage = refusal.Error.Message;
                 break;
             default:
                 _repoValidated = false;
+                _repoErrorKind = null;
                 ErrorMessage = "repository did not answer the validation probe";
                 break;
         }
 
+        NotifyAll();
         RefreshCommands();
     }
 
@@ -302,6 +355,9 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
             return;
         }
 
+        _chosenDirection = direction;
+        Notify(nameof(IsRepoWinsChosen));
+        Notify(nameof(IsFolderWinsChosen));
         await BootstrapAsync(decide, direction).ConfigureAwait(true);
     }
 

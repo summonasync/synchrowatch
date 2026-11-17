@@ -355,6 +355,144 @@ public class SetupWizardViewModelTests
         saved!.Mode.ShouldBe(mode);
     }
 
+    [Fact]
+    public async Task Validate_PublicRepository_ExposesPublicKindForRefusalForm()
+    {
+        var harness = new Harness();
+        harness.Remote.ValidateRepository(Arg.Any<CancellationToken>())
+            .Returns(new Result<RemoteValidation>.Fail(
+                new SyncError("public_repo", $"repository {RepoUrl} is publicly readable; sync only accepts private repositories")));
+        var viewModel = harness.ViewModel;
+        viewModel.AccessToken = Token;
+        await viewModel.ContinueAsync();
+        viewModel.RemoteUrl = RepoUrl;
+
+        await viewModel.ValidateRepositoryAsync();
+
+        viewModel.RepoErrorKind.ShouldBe("public_repo");
+        viewModel.RepoErrorIsPublic.ShouldBeTrue();
+        viewModel.RepoValidated.ShouldBeFalse();
+        viewModel.HasError.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Validate_UnreachableRepository_ExposesNonPublicKindForSemicolonForm()
+    {
+        var harness = new Harness();
+        harness.Remote.ValidateRepository(Arg.Any<CancellationToken>())
+            .Returns(new Result<RemoteValidation>.Fail(
+                new SyncError("unreachable", "could not resolve host syncrowatch.invalid")));
+        var viewModel = harness.ViewModel;
+        viewModel.AccessToken = Token;
+        await viewModel.ContinueAsync();
+        viewModel.RemoteUrl = "https://syncrowatch.invalid/acme/private.git";
+
+        await viewModel.ValidateRepositoryAsync();
+
+        viewModel.RepoErrorKind.ShouldBe("unreachable");
+        viewModel.RepoErrorIsPublic.ShouldBeFalse();
+        viewModel.RepoValidated.ShouldBeFalse();
+        viewModel.HasError.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Validate_SuccessfulProbe_ExposesBranchAndValidatedForm()
+    {
+        var harness = new Harness();
+        harness.Remote.ValidateRepository(Arg.Any<CancellationToken>())
+            .Returns(new Result<RemoteValidation>.Ok(new RemoteValidation(true, "develop")));
+        var viewModel = harness.ViewModel;
+        viewModel.AccessToken = Token;
+        await viewModel.ContinueAsync();
+        viewModel.RemoteUrl = RepoUrl;
+
+        await viewModel.ValidateRepositoryAsync();
+
+        viewModel.RepoValidated.ShouldBeTrue();
+        viewModel.Branch.ShouldBe("develop");
+        viewModel.RepoErrorKind.ShouldBeNull();
+        viewModel.HasError.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task EditUrl_AfterValidation_ClearsValidationFormState()
+    {
+        var harness = new Harness();
+        harness.Remote.ValidateRepository(Arg.Any<CancellationToken>())
+            .Returns(new Result<RemoteValidation>.Ok(new RemoteValidation(true, "main")));
+        var viewModel = harness.ViewModel;
+        viewModel.AccessToken = Token;
+        await viewModel.ContinueAsync();
+        viewModel.RemoteUrl = RepoUrl;
+        await viewModel.ValidateRepositoryAsync();
+
+        viewModel.RemoteUrl = "https://syncrowatch.test/other.git";
+
+        viewModel.RepoValidated.ShouldBeFalse();
+        viewModel.RepoErrorKind.ShouldBeNull();
+        viewModel.RepoErrorIsPublic.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData(BootstrapDirection.RepoWins)]
+    [InlineData(BootstrapDirection.FolderWins)]
+    public async Task Choose_BothSidesNonEmpty_MarksChosenDirection(BootstrapDirection direction)
+    {
+        var harness = new Harness();
+        await ReachBootstrapAsync(harness, new Result<BootstrapPlan>.Ok(
+            new BootstrapPlan.Decide(new BootstrapOptions("main", "a1b2c3d4e5f6a7b8a9b0", 3))));
+
+        await harness.ViewModel.ChooseAsync(direction);
+
+        harness.ViewModel.IsRepoWinsChosen.ShouldBe(direction == BootstrapDirection.RepoWins);
+        harness.ViewModel.IsFolderWinsChosen.ShouldBe(direction == BootstrapDirection.FolderWins);
+    }
+
+    [Theory]
+    [InlineData("publish")]
+    [InlineData("checkout")]
+    [InlineData("watch")]
+    [InlineData("decide")]
+    public async Task Assess_WithPlan_FlagsOnlyMatchingBootstrapCard(string scenario)
+    {
+        var harness = new Harness();
+        var assessOutcome = scenario switch
+        {
+            "publish" => new Result<BootstrapPlan>.Ok(new BootstrapPlan.PublishFolder()),
+            "checkout" => new Result<BootstrapPlan>.Ok(new BootstrapPlan.CheckoutRemote()),
+            "watch" => new Result<BootstrapPlan>.Ok(new BootstrapPlan.WatchEmpty()),
+            _ => new Result<BootstrapPlan>.Ok(
+                new BootstrapPlan.Decide(new BootstrapOptions("main", "c3d4e5f6a7b8a9b0c1d2", 5)))
+        };
+        await ReachBootstrapAsync(harness, assessOutcome);
+        var viewModel = harness.ViewModel;
+
+        viewModel.HasPlan.ShouldBeTrue();
+        viewModel.PlanIsPublishFolder.ShouldBe(scenario == "publish");
+        viewModel.PlanIsCheckoutRemote.ShouldBe(scenario == "checkout");
+        viewModel.PlanIsWatchEmpty.ShouldBe(scenario == "watch");
+        viewModel.NeedsChoice.ShouldBe(scenario == "decide");
+    }
+
+    [Fact]
+    public async Task Steps_AdvancedToBootstrap_MarkPassedRailSteps()
+    {
+        var harness = new Harness();
+        await ReachBootstrapAsync(harness, new Result<BootstrapPlan>.Ok(new BootstrapPlan.PublishFolder()));
+        var viewModel = harness.ViewModel;
+
+        viewModel.TokenDone.ShouldBeTrue();
+        viewModel.RepositoryDone.ShouldBeTrue();
+        viewModel.FolderDone.ShouldBeTrue();
+        viewModel.PreferencesDone.ShouldBeTrue();
+        viewModel.BootstrapDone.ShouldBeFalse();
+
+        await viewModel.FinishAsync();
+
+        viewModel.BootstrapDone.ShouldBeTrue();
+        viewModel.Step.ShouldBe(WizardStep.Completed);
+    }
+
     private static void SelectRunMode(SetupWizardViewModel viewModel, SyncRunMode mode)
     {
         switch (mode)
