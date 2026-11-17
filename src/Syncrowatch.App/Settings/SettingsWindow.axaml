@@ -1,0 +1,40 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:Syncrowatch.App.Settings"
+        x:Class="Syncrowatch.App.Settings.SettingsWindow"
+        x:DataType="vm:SettingsViewModel"
+        x:CompileBindings="True"
+        Title="Syncrowatch settings"
+        Width="560" Height="400"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen">
+  <StackPanel Margin="20" Spacing="12">
+    <TextBlock Text="Settings" FontSize="18" FontWeight="SemiBold" />
+    <Grid ColumnDefinitions="170,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="0,4">
+      <TextBlock Grid.Row="0" Grid.Column="0" Text="Watched folder" Opacity="0.7" Margin="0,0,12,8" />
+      <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding WatchedFolder}" TextWrapping="Wrap" Margin="0,0,0,8" />
+      <TextBlock Grid.Row="1" Grid.Column="0" Text="Repository" Opacity="0.7" Margin="0,0,12,8" />
+      <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding RemoteUrl}" TextWrapping="Wrap" Margin="0,0,0,8" />
+      <TextBlock Grid.Row="2" Grid.Column="0" Text="Branch" Opacity="0.7" Margin="0,0,12,8" />
+      <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Branch}" Margin="0,0,0,8" />
+      <TextBlock Grid.Row="3" Grid.Column="0" Text="Sync mode" Opacity="0.7" Margin="0,0,12,8" />
+      <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding RunMode}" Margin="0,0,0,8" />
+      <TextBlock Grid.Row="4" Grid.Column="0" Text="Debounce" Opacity="0.7" Margin="0,0,12,8" />
+      <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Debounce}" Margin="0,0,0,8" />
+      <TextBlock Grid.Row="5" Grid.Column="0" Text="Poll interval" Opacity="0.7" Margin="0,0,12,8" />
+      <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding PollInterval}" Margin="0,0,0,8" />
+      <TextBlock Grid.Row="6" Grid.Column="0" Text="Commit name" Opacity="0.7" Margin="0,0,12,8" />
+      <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding IdentityName}" Margin="0,0,0,8" />
+      <TextBlock Grid.Row="7" Grid.Column="0" Text="Commit email" Opacity="0.7" Margin="0,0,12,8" />
+      <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding IdentityEmail}" Margin="0,0,0,8" />
+      <TextBlock Grid.Row="8" Grid.Column="0" Text="Access token" Opacity="0.7" Margin="0,0,12,0" />
+      <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding Token}" />
+    </Grid>
+    <Button Content="Run wizard…" Command="{Binding RunWizardCommand}" HorizontalAlignment="Right" />
+    <TextBlock Margin="0,8,0,0"
+               IsVisible="{Binding HasError}"
+               Foreground="Crimson"
+               TextWrapping="Wrap"
+               Text="{Binding ErrorMessage}" />
+  </StackPanel>
+</Window>
