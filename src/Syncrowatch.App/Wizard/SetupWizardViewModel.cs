@@ -54,6 +54,7 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
         _folderPicker = folderPicker;
 
         ContinueCommand = new AsyncCommand(ContinueAsync, CanLeaveCurrentStep, HandleCommandFailure);
+        BackCommand = new AsyncCommand(BackAsync, CanBack, HandleCommandFailure);
         ValidateRepositoryCommand = new AsyncCommand(ValidateRepositoryAsync, () => IsRepositoryStep && !IsBusy, HandleCommandFailure);
         BrowseFolderCommand = new AsyncCommand(BrowseFolderAsync, () => IsFolderStep && !IsBusy, HandleCommandFailure);
         ChooseRepoWinsCommand = new AsyncCommand(() => ChooseAsync(BootstrapDirection.RepoWins), ChoicePending, HandleCommandFailure);
@@ -72,6 +73,8 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
     public event EventHandler? CloseRequested;
 
     public AsyncCommand ContinueCommand { get; }
+
+    public AsyncCommand BackCommand { get; }
 
     public AsyncCommand ValidateRepositoryCommand { get; }
 
@@ -294,6 +297,27 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
 
                 break;
         }
+    }
+
+    public Task BackAsync()
+    {
+        var previous = _step switch
+        {
+            WizardStep.Repository => WizardStep.AccessToken,
+            WizardStep.Folder => WizardStep.Repository,
+            WizardStep.Preferences => WizardStep.Folder,
+            WizardStep.Bootstrap => WizardStep.Preferences,
+            _ => _step
+        };
+
+        if (previous == _step || !CanBack())
+        {
+            return Task.CompletedTask;
+        }
+
+        ErrorMessage = null;
+        MoveTo(previous);
+        return Task.CompletedTask;
     }
 
     public async Task ValidateRepositoryAsync()
@@ -547,6 +571,9 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
 
     private bool ChoicePending() => NeedsChoice && !IsBusy;
 
+    private bool CanBack() =>
+        !IsBusy && _step is WizardStep.Repository or WizardStep.Folder or WizardStep.Preferences or WizardStep.Bootstrap;
+
     private bool CanLeaveCurrentStep() => _step switch
     {
         WizardStep.AccessToken => HasText(_accessToken),
@@ -572,6 +599,7 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
         foreach (var command in new[]
                  {
                      ContinueCommand,
+                     BackCommand,
                      ValidateRepositoryCommand,
                      BrowseFolderCommand,
                      ChooseRepoWinsCommand,

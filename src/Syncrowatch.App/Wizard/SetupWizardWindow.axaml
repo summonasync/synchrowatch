@@ -502,37 +502,48 @@
       </StackPanel>
     </Grid>
 
-    <StackPanel Grid.Column="1" Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10"
-                Margin="26,12,26,18">
-      <Button Classes="primary" Content="Continue" Command="{Binding ContinueCommand}">
+    <Grid Grid.Column="1" Grid.Row="1" ColumnDefinitions="*,Auto" Margin="26,12,26,18">
+      <Button Classes="secondary" Content="Back" Command="{Binding BackCommand}" HorizontalAlignment="Left">
         <Button.IsVisible>
           <MultiBinding Converter="{x:Static BoolConverters.Or}">
-            <Binding Path="IsTokenStep" />
             <Binding Path="IsRepositoryStep" />
             <Binding Path="IsFolderStep" />
             <Binding Path="IsPreferencesStep" />
-          </MultiBinding>
-        </Button.IsVisible>
-      </Button>
-      <Button Classes="secondary" Content="Cancel" Command="{Binding CancelCommand}">
-        <Button.IsVisible>
-          <MultiBinding Converter="{x:Static BoolConverters.And}">
             <Binding Path="IsBootstrapStep" />
-            <Binding Path="!NeedsChoice" />
-            <Binding Path="!CanFinish" />
           </MultiBinding>
         </Button.IsVisible>
       </Button>
-      <Button Classes="primary" Content="Finish" Command="{Binding FinishCommand}">
-        <Button.IsVisible>
-          <MultiBinding Converter="{x:Static BoolConverters.And}">
-            <Binding Path="IsBootstrapStep" />
-            <Binding Path="!NeedsChoice" />
-            <Binding Path="CanFinish" />
-          </MultiBinding>
-        </Button.IsVisible>
-      </Button>
-      <Button Classes="secondary" Content="Close" Command="{Binding CloseCommand}" IsVisible="{Binding IsCompleted}" />
-    </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+        <Button Classes="primary" Content="Continue" Command="{Binding ContinueCommand}">
+          <Button.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.Or}">
+              <Binding Path="IsTokenStep" />
+              <Binding Path="IsRepositoryStep" />
+              <Binding Path="IsFolderStep" />
+              <Binding Path="IsPreferencesStep" />
+            </MultiBinding>
+          </Button.IsVisible>
+        </Button>
+        <Button Classes="secondary" Content="Cancel" Command="{Binding CancelCommand}">
+          <Button.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="IsBootstrapStep" />
+              <Binding Path="!NeedsChoice" />
+              <Binding Path="!CanFinish" />
+            </MultiBinding>
+          </Button.IsVisible>
+        </Button>
+        <Button Classes="primary" Content="Finish" Command="{Binding FinishCommand}">
+          <Button.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="IsBootstrapStep" />
+              <Binding Path="!NeedsChoice" />
+              <Binding Path="CanFinish" />
+            </MultiBinding>
+          </Button.IsVisible>
+        </Button>
+        <Button Classes="secondary" Content="Close" Command="{Binding CloseCommand}" IsVisible="{Binding IsCompleted}" />
+      </StackPanel>
+    </Grid>
   </Grid>
 </Window>

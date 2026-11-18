@@ -493,6 +493,170 @@ public class SetupWizardViewModelTests
         viewModel.Step.ShouldBe(WizardStep.Completed);
     }
 
+    [Theory]
+    [InlineData(WizardStep.Repository, WizardStep.AccessToken)]
+    [InlineData(WizardStep.Folder, WizardStep.Repository)]
+    [InlineData(WizardStep.Preferences, WizardStep.Folder)]
+    [InlineData(WizardStep.Bootstrap, WizardStep.Preferences)]
+    public async Task Back_FromStep_MovesToPreviousStep(WizardStep from, WizardStep expected)
+    {
+        var harness = new Harness();
+        var viewModel = harness.ViewModel;
+        await AdvanceAsync(harness, from);
+        viewModel.Step.ShouldBe(from);
+        viewModel.BackCommand.CanExecute(null).ShouldBeTrue();
+
+        await viewModel.BackAsync();
+
+        viewModel.Step.ShouldBe(expected);
+    }
+
+    [Fact]
+    public async Task Back_OnFirstStep_Refuses()
+    {
+        var harness = new Harness();
+        var viewModel = harness.ViewModel;
+
+        viewModel.BackCommand.CanExecute(null).ShouldBeFalse();
+        await viewModel.BackAsync();
+
+        viewModel.Step.ShouldBe(WizardStep.AccessToken);
+    }
+
+    [Fact]
+    public async Task Back_AfterCompleted_Refuses()
+    {
+        var harness = new Harness();
+        await ReachBootstrapAsync(harness, new Result<BootstrapPlan>.Ok(new BootstrapPlan.PublishFolder()));
+        await harness.ViewModel.FinishAsync();
+        var viewModel = harness.ViewModel;
+        viewModel.Step.ShouldBe(WizardStep.Completed);
+
+        viewModel.BackCommand.CanExecute(null).ShouldBeFalse();
+        await viewModel.BackAsync();
+
+        viewModel.Step.ShouldBe(WizardStep.Completed);
+    }
+
+    [Fact]
+    public async Task Back_WhileAssessPending_DisabledUntilBusyClears()
+    {
+        var harness = new Harness();
+        var assessGate = new TaskCompletionSource<Result<BootstrapPlan>>();
+        harness.Bootstrapper.Assess(Arg.Any<CancellationToken>()).Returns(assessGate.Task);
+        var viewModel = harness.ViewModel;
+        viewModel.AccessToken = Token;
+        await viewModel.ContinueAsync();
+        viewModel.RemoteUrl = RepoUrl;
+        await viewModel.ValidateRepositoryAsync();
+        await viewModel.ContinueAsync();
+        viewModel.FolderPath = FolderPath;
+        await viewModel.ContinueAsync();
+        viewModel.Step.ShouldBe(WizardStep.Preferences);
+
+        var advancing = viewModel.ContinueAsync();
+        viewModel.Step.ShouldBe(WizardStep.Bootstrap);
+        viewModel.IsBusy.ShouldBeTrue();
+        viewModel.BackCommand.CanExecute(null).ShouldBeFalse();
+
+        await viewModel.BackAsync();
+        viewModel.Step.ShouldBe(WizardStep.Bootstrap);
+
+        assessGate.SetResult(new Result<BootstrapPlan>.Ok(new BootstrapPlan.PublishFolder()));
+        await advancing;
+
+        viewModel.BackCommand.CanExecute(null).ShouldBeTrue();
+        await viewModel.BackAsync();
+        viewModel.Step.ShouldBe(WizardStep.Preferences);
+    }
+
+    [Fact]
+    public async Task Back_FromPreferences_PreservesEnteredFieldsAcrossRoundTrip()
+    {
+        var harness = new Harness();
+        var viewModel = harness.ViewModel;
+        await AdvanceAsync(harness, WizardStep.Preferences);
+        SelectRunMode(viewModel, SyncRunMode.Manual);
+        viewModel.IdentityName = "Ops Bot";
+        viewModel.IdentityEmail = "ops@syncrowatch.test";
+
+        await viewModel.BackAsync();
+
+        viewModel.Step.ShouldBe(WizardStep.Folder);
+        viewModel.RemoteUrl.ShouldBe(RepoUrl);
+        viewModel.FolderPath.ShouldBe(FolderPath);
+        viewModel.IdentityName.ShouldBe("Ops Bot");
+        viewModel.IdentityEmail.ShouldBe("ops@syncrowatch.test");
+        viewModel.UseManualMode.ShouldBeTrue();
+
+        await viewModel.ContinueAsync();
+
+        viewModel.Step.ShouldBe(WizardStep.Preferences);
+        viewModel.IdentityName.ShouldBe("Ops Bot");
+        viewModel.IdentityEmail.ShouldBe("ops@syncrowatch.test");
+        viewModel.UseManualMode.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Back_FromFolder_KeepsRepositoryValidationWhenUrlUnchanged()
+    {
+        var harness = new Harness();
+        var viewModel = harness.ViewModel;
+        await AdvanceAsync(harness, WizardStep.Folder);
+
+        await viewModel.BackAsync();
+
+        viewModel.Step.ShouldBe(WizardStep.Repository);
+        viewModel.RepoValidated.ShouldBeTrue();
+        viewModel.Branch.ShouldBe("main");
+        viewModel.ContinueCommand.CanExecute(null).ShouldBeTrue();
+
+        await viewModel.ContinueAsync();
+
+        viewModel.Step.ShouldBe(WizardStep.Folder);
+        await harness.Remote.Received(1).ValidateRepository(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Back_FromRepository_ShowsEmptyTokenFieldAndKeepsStoredCredential()
+    {
+        var harness = new Harness();
+        var viewModel = harness.ViewModel;
+        viewModel.AccessToken = Token;
+        await viewModel.ContinueAsync();
+        viewModel.Step.ShouldBe(WizardStep.Repository);
+
+        await viewModel.BackAsync();
+
+        viewModel.Step.ShouldBe(WizardStep.AccessToken);
+        viewModel.AccessToken.ShouldBeEmpty();
+        await harness.Credentials.DidNotReceiveWithAnyArgs().Delete(default);
+
+        viewModel.AccessToken = "ghp_rotated_token_9f8e7d6c";
+        await viewModel.ContinueAsync();
+
+        viewModel.Step.ShouldBe(WizardStep.Repository);
+        await harness.Credentials.Received(1).Write(
+            Arg.Is<PersonalAccessToken>(candidate => candidate.Value == Token), Arg.Any<CancellationToken>());
+        await harness.Credentials.Received(1).Write(
+            Arg.Is<PersonalAccessToken>(candidate => candidate.Value == "ghp_rotated_token_9f8e7d6c"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Back_FromBootstrap_ExecutesNothingAndRewindsToPreferences()
+    {
+        var harness = new Harness();
+        await ReachBootstrapAsync(harness, new Result<BootstrapPlan>.Ok(
+            new BootstrapPlan.Decide(new BootstrapOptions("main", "a1b2c3d4e5f6a7b8a9b0", 3))));
+        var viewModel = harness.ViewModel;
+
+        await viewModel.BackAsync();
+
+        viewModel.Step.ShouldBe(WizardStep.Preferences);
+        await harness.Bootstrapper.DidNotReceiveWithAnyArgs().Execute(null!, default, default);
+        harness.ConfigStore.ReceivedCalls().ShouldBeEmpty();
+    }
+
     private static void SelectRunMode(SetupWizardViewModel viewModel, SyncRunMode mode)
     {
         switch (mode)
@@ -507,6 +671,41 @@ public class SetupWizardViewModelTests
                 viewModel.UseSemiAutoMode = true;
                 break;
         }
+    }
+
+    private static async Task AdvanceAsync(Harness harness, WizardStep target)
+    {
+        harness.Bootstrapper.Assess(Arg.Any<CancellationToken>())
+            .Returns(new Result<BootstrapPlan>.Ok(new BootstrapPlan.PublishFolder()));
+        var viewModel = harness.ViewModel;
+        viewModel.AccessToken = Token;
+        if (target == WizardStep.AccessToken)
+        {
+            return;
+        }
+
+        await viewModel.ContinueAsync();
+        if (target == WizardStep.Repository)
+        {
+            return;
+        }
+
+        viewModel.RemoteUrl = RepoUrl;
+        await viewModel.ValidateRepositoryAsync();
+        await viewModel.ContinueAsync();
+        if (target == WizardStep.Folder)
+        {
+            return;
+        }
+
+        viewModel.FolderPath = FolderPath;
+        await viewModel.ContinueAsync();
+        if (target == WizardStep.Preferences)
+        {
+            return;
+        }
+
+        await viewModel.ContinueAsync();
     }
 
     private static async Task ReachBootstrapAsync(Harness harness, Result<BootstrapPlan> assessOutcome)
