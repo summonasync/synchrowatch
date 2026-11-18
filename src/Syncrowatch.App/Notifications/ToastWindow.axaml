@@ -4,6 +4,9 @@
         x:Class="Syncrowatch.App.Notifications.ToastWindow"
         x:DataType="vm:ToastViewModel"
         x:CompileBindings="True"
+        Classes.positive="{Binding IsPositive}"
+        Classes.attention="{Binding IsAttention}"
+        Classes.neutral="{Binding IsNeutral}"
         Width="340" Height="96"
         CanResize="False"
         ShowInTaskbar="False"
@@ -11,14 +14,48 @@
         SystemDecorations="None"
         Topmost="True"
         Background="{DynamicResource BrandInk2Brush}">
-  <StackPanel Margin="14,10" Spacing="4">
-    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="{DynamicResource BrandParchmentBrush}" FontSize="13" />
-    <TextBlock Text="{Binding Message}" Foreground="{DynamicResource BrandParchmentBrush}" FontSize="12" TextWrapping="Wrap" />
-    <TextBlock Text="{Binding Command}"
-               FontFamily="Consolas, DejaVu Sans Mono, monospace"
-               FontSize="11"
-               Foreground="{DynamicResource BrandAshBrush}"
-               TextWrapping="NoWrap"
-               IsVisible="{Binding HasCommand}" />
-  </StackPanel>
+  <Window.Resources>
+    <vm:ToastGlyphConverter x:Key="GlyphToImage" />
+  </Window.Resources>
+  <Window.Styles>
+    <Style Selector="Rectangle.kindEdge">
+      <Setter Property="Width" Value="3" />
+      <Setter Property="Fill" Value="{DynamicResource BrandAshBrush}" />
+    </Style>
+    <Style Selector="Window.positive Rectangle.kindEdge">
+      <Setter Property="Fill" Value="{DynamicResource BrandParchmentBrush}" />
+    </Style>
+    <Style Selector="Window.attention Rectangle.kindEdge">
+      <Setter Property="Fill" Value="{DynamicResource BrandEmberBrush}" />
+    </Style>
+    <Style Selector="TextBlock.title">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Foreground" Value="{DynamicResource BrandParchmentBrush}" />
+    </Style>
+    <Style Selector="TextBlock.message">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource BrandAshBrush}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.command">
+      <Setter Property="FontFamily" Value="JetBrains Mono NL, Consolas, DejaVu Sans Mono, monospace" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource BrandAshBrush}" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+  </Window.Styles>
+  <Border BorderBrush="{DynamicResource BrandLineBrush}" BorderThickness="1">
+    <Grid ColumnDefinitions="Auto,*">
+      <Rectangle Classes="kindEdge" />
+      <Grid Grid.Column="1" Margin="13,12,14,11" ColumnDefinitions="Auto,*">
+        <Image Source="{Binding Glyph, Converter={StaticResource GlyphToImage}}" Width="24" Height="24" Margin="0,1,11,0" VerticalAlignment="Top" />
+        <StackPanel Grid.Column="1" Spacing="4">
+          <TextBlock Classes="title" Text="{Binding Title}" />
+          <TextBlock Classes="message" Text="{Binding Message}" />
+          <TextBlock Classes="command" Text="{Binding Command}" IsVisible="{Binding HasCommand}" />
+        </StackPanel>
+      </Grid>
+    </Grid>
+  </Border>
 </Window>

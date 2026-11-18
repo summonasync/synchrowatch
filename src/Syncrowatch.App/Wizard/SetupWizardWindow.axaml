@@ -41,10 +41,10 @@
       </Setter>
     </Style>
     <Style Selector="Button.primary:pointerover /template/ Border#actionChrome">
-      <Setter Property="Background" Value="#FF8352" />
+      <Setter Property="Background" Value="{DynamicResource BrandEmberHoverBrush}" />
     </Style>
     <Style Selector="Button.primary:pressed /template/ Border#actionChrome">
-      <Setter Property="Background" Value="#E85C28" />
+      <Setter Property="Background" Value="{DynamicResource BrandEmberPressBrush}" />
     </Style>
     <Style Selector="Button.primary:disabled /template/ Border#actionChrome">
       <Setter Property="Opacity" Value="0.4" />
@@ -73,11 +73,11 @@
       </Setter>
     </Style>
     <Style Selector="Button.secondary:pointerover /template/ Border#actionChrome">
-      <Setter Property="Background" Value="#12E8E4D9" />
+      <Setter Property="Background" Value="{DynamicResource BrandSurfaceHoverBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource BrandParchmentBrush}" />
     </Style>
     <Style Selector="Button.secondary:pressed /template/ Border#actionChrome">
-      <Setter Property="Background" Value="#1FE8E4D9" />
+      <Setter Property="Background" Value="{DynamicResource BrandSurfacePressBrush}" />
     </Style>
     <Style Selector="Button.secondary:disabled /template/ Border#actionChrome">
       <Setter Property="Opacity" Value="0.4" />
