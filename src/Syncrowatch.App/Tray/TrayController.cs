@@ -1,10 +1,14 @@
 using System.ComponentModel;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Synchro.Core;
 using Syncrowatch.App.Notifications;
+using Syncrowatch.App.Settings;
 using Syncrowatch.App.Wizard;
 using Syncrowatch.Core;
 using Syncrowatch.Core.Config;
@@ -16,6 +20,8 @@ namespace Syncrowatch.App.Tray;
 
 public sealed class TrayController : IDisposable
 {
+    private const string MenuSettingsIconPath = "avares://syncrowatch/Assets/menu/menu-settings-16.png";
+
     private readonly IServiceProvider _services;
     private readonly TrayIcon _icon;
     private readonly IClassicDesktopStyleApplicationLifetime _desktop;
@@ -26,6 +32,7 @@ public sealed class TrayController : IDisposable
     private readonly NativeMenuItem _autoItem;
     private readonly NativeMenuItem _manualItem;
     private readonly NativeMenuItem _semiAutoItem;
+    private readonly ISettingsRouter _settingsRouter;
     private ModeController? _controller;
     private RelayPollDriver _relayDriver;
     private readonly DetectionPromptController _detection;
@@ -51,26 +58,48 @@ public sealed class TrayController : IDisposable
             new DetectionPrompt(),
             () => _syncCommand.ExecuteAsync(null),
             HandleCommandFailure);
+        _settingsRouter = services.GetRequiredService<ISettingsRouter>();
+        _settingsRouter.WizardClosed += OnWizardClosed;
         _pauseItem = MenuActionItem("Pause", TogglePause);
         _autoItem = ModeItem("Auto", SyncRunMode.Auto);
         _manualItem = ModeItem("Manual", SyncRunMode.Manual);
         _semiAutoItem = ModeItem("Semi-auto", SyncRunMode.SemiAuto);
-        _icon.Menu = new NativeMenu
-        {
+        _icon.Menu = BuildMenu(
             new NativeMenuItem("Sync now") { Command = _syncCommand },
             _pauseItem,
-            new NativeMenuItemSeparator(),
             _autoItem,
             _manualItem,
             _semiAutoItem,
-            new NativeMenuItemSeparator(),
             MenuActionItem("Open history", OpenHistory),
             MenuActionItem("Open files", OpenFiles),
-            MenuActionItem("Settings", OpenSettings),
-            new NativeMenuItemSeparator(),
-            MenuActionItem("Exit", Exit)
-        };
+            SettingsItem(),
+            MenuActionItem("Exit", Exit));
     }
+
+    internal static NativeMenu BuildMenu(
+        NativeMenuItem syncItem,
+        NativeMenuItem pauseItem,
+        NativeMenuItem autoItem,
+        NativeMenuItem manualItem,
+        NativeMenuItem semiAutoItem,
+        NativeMenuItem historyItem,
+        NativeMenuItem filesItem,
+        NativeMenuItem settingsItem,
+        NativeMenuItem exitItem) => new()
+    {
+        syncItem,
+        pauseItem,
+        new NativeMenuItemSeparator(),
+        autoItem,
+        manualItem,
+        semiAutoItem,
+        new NativeMenuItemSeparator(),
+        historyItem,
+        filesItem,
+        settingsItem,
+        new NativeMenuItemSeparator(),
+        exitItem
+    };
 
     public async Task LaunchAsync()
     {
@@ -100,6 +129,7 @@ public sealed class TrayController : IDisposable
 
         _relayDriver.Dispose();
         _detection.Dispose();
+        _settingsRouter.WizardClosed -= OnWizardClosed;
         _tracker.PropertyChanged -= OnTrayStateChanged;
         _tracker.Dispose();
     }
@@ -188,25 +218,29 @@ public sealed class TrayController : IDisposable
 
     private void OpenFiles() => _services.GetRequiredService<IFilesView>().Show();
 
-    private void OpenSettings()
+    private void OpenSettings() => _ = _settingsRouter.OpenAsync();
+
+    private NativeMenuItem SettingsItem()
     {
-        Dispatcher.UIThread.Post(() =>
-        {
-            var wizard = _services.GetRequiredService<SetupWizardWindow>();
-            wizard.Closed += OnWizardClosed;
-            wizard.Show();
-        });
+        var item = MenuActionItem("Settings", OpenSettings);
+        item.Icon = LoadMenuIcon();
+        return item;
     }
 
-    private void OnWizardClosed(object? sender, EventArgs e)
+    private Bitmap? LoadMenuIcon()
     {
-        if (sender is Window window)
+        try
         {
-            window.Closed -= OnWizardClosed;
+            using var stream = AssetLoader.Open(new Uri(MenuSettingsIconPath, UriKind.Absolute));
+            return new Bitmap(stream);
         }
-
-        _ = RebuildAsync();
+        catch (Exception)
+        {
+            return null;
+        }
     }
+
+    private void OnWizardClosed(object? sender, EventArgs e) => _ = RebuildAsync();
 
     private void Exit()
     {

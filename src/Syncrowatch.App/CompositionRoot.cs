@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Syncrowatch.App.Files;
 using Syncrowatch.App.History;
 using Syncrowatch.App.Notifications;
+using Syncrowatch.App.Settings;
 using Syncrowatch.App.Tray;
 using Syncrowatch.App.Wizard;
 using Syncrowatch.Core;
@@ -67,6 +68,11 @@ public static class CompositionRoot
         services.AddSingleton(sp => new TrayStateWatcher(
             sp.GetRequiredService<ISyncEventBus>(), sp.GetRequiredService<ITrayStateUpdater>()));
         services.AddSingleton<IHistoryView>(sp => new HistoryWindowView(sp));
+        services.AddSingleton<SettingsWindowView>();
+        services.AddSingleton<ISettingsRouter>(sp => new SettingsRouter(
+            sp.GetRequiredService<ISyncConfigStore>(),
+            () => new WizardSettingsSurface(sp.GetRequiredService<SetupWizardWindow>()),
+            () => sp.GetRequiredService<SettingsWindowView>()));
         services.AddSingleton<IPendingPathsSource>(new PendingPathsSource());
         services.AddSingleton<IFilesView>(sp => new FilesWindowView(() => new FilesWindow(sp)));
         services.AddSingleton<Func<SyncConfig, IFileWatching>>(config => new FolderWatcher(config.WatchedFolder));

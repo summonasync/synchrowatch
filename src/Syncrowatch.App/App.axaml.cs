@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
+using Syncrowatch.App.Settings;
 using Syncrowatch.App.Tray;
 using Syncrowatch.App.Wizard;
 
@@ -37,14 +38,28 @@ public class App : Application
 
     private static bool LaunchSettingsWindow(IClassicDesktopStyleApplicationLifetime desktop)
     {
-        if (desktop.Args is not { Length: > 0 } args || !args.Contains("--settings"))
+        if (desktop.Args is not { Length: > 0 } args)
         {
             return false;
         }
 
-        var wizard = CompositionRoot.Build().GetRequiredService<SetupWizardWindow>();
-        wizard.Closed += (_, _) => desktop.Shutdown();
-        wizard.Show();
-        return true;
+        var services = CompositionRoot.Build();
+        if (args.Contains("--settings"))
+        {
+            var wizard = services.GetRequiredService<SetupWizardWindow>();
+            wizard.Closed += (_, _) => desktop.Shutdown();
+            wizard.Show();
+            return true;
+        }
+
+        if (args.Contains("--settings-preview"))
+        {
+            var preview = services.GetRequiredService<SettingsWindowView>();
+            preview.Closed += (_, _) => desktop.Shutdown();
+            preview.Show();
+            return true;
+        }
+
+        return false;
     }
 }
