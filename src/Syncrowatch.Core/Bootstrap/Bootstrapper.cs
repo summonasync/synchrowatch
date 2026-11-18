@@ -98,8 +98,13 @@ public sealed class Bootstrapper(SyncConfig config, IRemoteRepository remote, IL
 
         if (probe.Value)
         {
-            return new Result<BootstrapOutcome>.Fail(
-                SyncError.Invalid("watched folder has no committable files after ignore rules"));
+            if (expectedRemoteSha is null)
+            {
+                return new Result<BootstrapOutcome>.Fail(
+                    SyncError.Invalid("watched folder has no committable files after ignore rules"));
+            }
+
+            return await FinishAsync(BootstrapFlow.FolderInSync, cancellationToken).ConfigureAwait(false);
         }
 
         RequireOk(await local.Commit(config.WatchedFolder, InitialCommitMessage, cancellationToken).ConfigureAwait(false));

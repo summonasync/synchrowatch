@@ -299,7 +299,7 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
         }
     }
 
-    public Task BackAsync()
+    public async Task BackAsync()
     {
         var previous = _step switch
         {
@@ -312,12 +312,15 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
 
         if (previous == _step || !CanBack())
         {
-            return Task.CompletedTask;
+            return;
         }
 
         ErrorMessage = null;
         MoveTo(previous);
-        return Task.CompletedTask;
+        if (previous == WizardStep.AccessToken)
+        {
+            await RestoreStoredTokenAsync().ConfigureAwait(true);
+        }
     }
 
     public async Task ValidateRepositoryAsync()
@@ -432,6 +435,15 @@ public sealed class SetupWizardViewModel : INotifyPropertyChanged
         IsBusy = false;
         Progress = null;
         ErrorMessage = $"sync setup stopped unexpectedly: {exception.Message}";
+    }
+
+    private async Task RestoreStoredTokenAsync()
+    {
+        var read = await _credentials.Read(CancellationToken.None).ConfigureAwait(true);
+        if (read is Result<PersonalAccessToken>.Ok stored)
+        {
+            AccessToken = stored.Value.Value;
+        }
     }
 
     private async Task<bool> StoreTokenAsync()

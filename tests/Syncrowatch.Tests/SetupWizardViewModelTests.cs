@@ -82,6 +82,7 @@ public class SetupWizardViewModelTests
         harness.ViewModel.AccessToken.ShouldBeEmpty();
         await harness.Credentials.Received(1).Write(
             Arg.Is<PersonalAccessToken>(candidate => candidate.Value == Token), Arg.Any<CancellationToken>());
+        await harness.Credentials.DidNotReceiveWithAnyArgs().Read(default);
     }
 
     [Fact]
@@ -618,18 +619,20 @@ public class SetupWizardViewModelTests
     }
 
     [Fact]
-    public async Task Back_FromRepository_ShowsEmptyTokenFieldAndKeepsStoredCredential()
+    public async Task Back_FromRepository_RefillsTokenFieldFromStoreAndKeepsCredential()
     {
         var harness = new Harness();
         var viewModel = harness.ViewModel;
         viewModel.AccessToken = Token;
         await viewModel.ContinueAsync();
         viewModel.Step.ShouldBe(WizardStep.Repository);
+        viewModel.AccessToken.ShouldBeEmpty();
 
         await viewModel.BackAsync();
 
         viewModel.Step.ShouldBe(WizardStep.AccessToken);
-        viewModel.AccessToken.ShouldBeEmpty();
+        viewModel.AccessToken.ShouldBe(Token);
+        await harness.Credentials.Received(1).Read(Arg.Any<CancellationToken>());
         await harness.Credentials.DidNotReceiveWithAnyArgs().Delete(default);
 
         viewModel.AccessToken = "ghp_rotated_token_9f8e7d6c";
@@ -640,6 +643,27 @@ public class SetupWizardViewModelTests
             Arg.Is<PersonalAccessToken>(candidate => candidate.Value == Token), Arg.Any<CancellationToken>());
         await harness.Credentials.Received(1).Write(
             Arg.Is<PersonalAccessToken>(candidate => candidate.Value == "ghp_rotated_token_9f8e7d6c"), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("unavailable")]
+    [InlineData("missing_file")]
+    public async Task Back_FromRepository_FailedStoreRead_LeavesTokenFieldEmpty(string errorCode)
+    {
+        var harness = new Harness();
+        harness.Credentials.Read(Arg.Any<CancellationToken>())
+            .Returns(new Result<PersonalAccessToken>.Fail(new SyncError(errorCode, "credential store refused the read")));
+        var viewModel = harness.ViewModel;
+        viewModel.AccessToken = Token;
+        await viewModel.ContinueAsync();
+        viewModel.Step.ShouldBe(WizardStep.Repository);
+
+        await viewModel.BackAsync();
+
+        viewModel.Step.ShouldBe(WizardStep.AccessToken);
+        viewModel.AccessToken.ShouldBeEmpty();
+        viewModel.HasError.ShouldBeFalse();
+        viewModel.ContinueCommand.CanExecute(null).ShouldBeFalse();
     }
 
     [Fact]
@@ -739,6 +763,8 @@ public class SetupWizardViewModelTests
 
         public Harness()
         {
+            Credentials.Read(Arg.Any<CancellationToken>())
+                .Returns(new Result<PersonalAccessToken>.Ok(new PersonalAccessToken(Token)));
             Credentials.Write(Arg.Any<PersonalAccessToken>(), Arg.Any<CancellationToken>())
                 .Returns(call => new Result<PersonalAccessToken>.Ok(call.ArgAt<PersonalAccessToken>(0)));
             Credentials.Delete(Arg.Any<CancellationToken>())
