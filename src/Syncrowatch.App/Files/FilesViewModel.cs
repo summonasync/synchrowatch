@@ -100,6 +100,8 @@ public sealed class FilesViewModel : INotifyPropertyChanged, IDisposable
 
     public bool HasSelection => _selectedFile is not null;
 
+    public bool HasFiles => _files.Count > 0;
+
     public IReadOnlyList<CommitEntryViewModel> Timeline
     {
         get => _timeline;
@@ -254,6 +256,7 @@ public sealed class FilesViewModel : INotifyPropertyChanged, IDisposable
             .Select(path => new FileEntryViewModel(path, GlanceFor(path, pending, unpushed)))
             .ToList();
         ApplyFilter();
+        Notify(nameof(HasFiles));
 
         var previous = _selectedFile?.Path;
         _selectedFile = previous is null
@@ -296,7 +299,9 @@ public sealed class FilesViewModel : INotifyPropertyChanged, IDisposable
             }
 
             var now = _time.GetUtcNow();
-            Timeline = entries.Value.Select(record => new CommitEntryViewModel(record, now)).ToList();
+            Timeline = entries.Value
+                .Select((record, index) => new CommitEntryViewModel(record, now, index == 0))
+                .ToList();
             ErrorMessage = null;
         }
         catch (Exception exception)

@@ -11,12 +11,97 @@
         ShowInTaskbar="False"
         Topmost="True"
         WindowStartupLocation="CenterScreen">
-  <StackPanel Margin="16" Spacing="12">
-    <TextBlock Text="Local changes found" FontSize="16" FontWeight="SemiBold" />
-    <TextBlock TextWrapping="Wrap" Text="{Binding Message}" />
+  <Window.Resources>
+    <FontFamily x:Key="MonoFont">JetBrains Mono NL, Consolas, DejaVu Sans Mono, monospace</FontFamily>
+  </Window.Resources>
+
+  <Window.Styles>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{DynamicResource BrandEmberBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource BrandInkBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BrandEmberBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="16,6" />
+      <Setter Property="MinWidth" Value="104" />
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border x:Name="actionChrome"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  Padding="{TemplateBinding Padding}">
+            <ContentPresenter Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              TextBlock.Foreground="{TemplateBinding Foreground}"
+                              TextBlock.FontWeight="{TemplateBinding FontWeight}" />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ Border#actionChrome">
+      <Setter Property="Background" Value="{DynamicResource BrandEmberHoverBrush}" />
+    </Style>
+    <Style Selector="Button.primary:pressed /template/ Border#actionChrome">
+      <Setter Property="Background" Value="{DynamicResource BrandEmberPressBrush}" />
+    </Style>
+
+    <Style Selector="Button.secondary">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource BrandAshBrush}" />
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BrandAshBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="14,5" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border x:Name="actionChrome"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  Padding="{TemplateBinding Padding}">
+            <ContentPresenter Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              TextBlock.Foreground="{TemplateBinding Foreground}" />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="Button.secondary:pointerover">
+      <Setter Property="Foreground" Value="{DynamicResource BrandParchmentBrush}" />
+    </Style>
+    <Style Selector="Button.secondary:pointerover /template/ Border#actionChrome">
+      <Setter Property="Background" Value="{DynamicResource BrandSurfaceHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BrandParchmentBrush}" />
+    </Style>
+    <Style Selector="Button.secondary:pressed /template/ Border#actionChrome">
+      <Setter Property="Background" Value="{DynamicResource BrandSurfacePressBrush}" />
+    </Style>
+  </Window.Styles>
+
+  <StackPanel Margin="18,16" Spacing="12">
+    <StackPanel Orientation="Horizontal" Spacing="10">
+      <Panel Width="14" Height="14" VerticalAlignment="Center">
+        <Ellipse Width="13" Height="13" StrokeThickness="1.4"
+                 Stroke="{DynamicResource BrandParchmentBrush}" />
+        <Path Data="M 7,1 A 6,6 0 0 0 7,13 Z" Fill="{DynamicResource BrandParchmentBrush}"
+              HorizontalAlignment="Left" VerticalAlignment="Top" />
+      </Panel>
+      <TextBlock Text="Local changes found" FontFamily="{StaticResource MonoFont}" FontSize="15"
+                 FontWeight="SemiBold" Foreground="{DynamicResource BrandParchmentBrush}" VerticalAlignment="Center" />
+    </StackPanel>
+    <TextBlock TextWrapping="Wrap" Text="{Binding Message}" FontSize="12"
+               Foreground="{DynamicResource BrandParchmentBrush}" />
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-      <Button Content="Sync now" Command="{Binding SyncNowCommand}" />
-      <Button Content="Later" Command="{Binding LaterCommand}" />
+      <Button Classes="primary" Content="Sync now" Command="{Binding SyncNowCommand}" />
+      <Button Classes="secondary" Content="Later" Command="{Binding LaterCommand}" />
     </StackPanel>
   </StackPanel>
 </Window>
