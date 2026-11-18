@@ -181,8 +181,8 @@
     </Style>
   </Window.Styles>
 
-  <Grid ColumnDefinitions="178,*">
-    <Border Grid.Column="0"
+  <Grid ColumnDefinitions="178,*" RowDefinitions="*,Auto">
+    <Border Grid.Column="0" Grid.RowSpan="2"
             Background="{DynamicResource BrandInk2Brush}"
             BorderBrush="{DynamicResource BrandLineBrush}"
             BorderThickness="0,0,1,0"
@@ -230,24 +230,8 @@
       </StackPanel>
     </Border>
 
-    <ScrollViewer Grid.Column="1">
+    <ScrollViewer Grid.Column="1" Grid.Row="0" IsVisible="{Binding !IsTokenStep}">
       <StackPanel Margin="26,20,26,18" Spacing="12">
-        <StackPanel IsVisible="{Binding IsTokenStep}" Spacing="14" MaxWidth="430" HorizontalAlignment="Left">
-          <Image Source="{StaticResource WizardHeroSigil}" Height="248" HorizontalAlignment="Left" Margin="36,0,0,0" />
-          <TextBox Text="{Binding AccessToken}"
-                   PasswordChar="•"
-                   Watermark="github personal access token"
-                   FontFamily="{StaticResource MonoFont}"
-                   CaretBrush="{DynamicResource BrandEmberBrush}" />
-          <TextBlock Text="await Syncrowatch();" FontFamily="{StaticResource MonoFont}" FontSize="13"
-                     Foreground="{DynamicResource BrandAshBrush}" HorizontalAlignment="Center" Margin="0,4,0,0" />
-          <TextBlock TextWrapping="Wrap" FontSize="11"
-                     Foreground="{DynamicResource BrandAshBrush}"
-                     Text="Stored in your user profile with owner-only permissions." />
-          <Button Classes="primary" Content="Continue" Command="{Binding ContinueCommand}"
-                  HorizontalAlignment="Right" Margin="0,4,0,0" />
-        </StackPanel>
-
         <StackPanel IsVisible="{Binding IsRepositoryStep}" Spacing="12" MaxWidth="470" HorizontalAlignment="Left">
           <TextBlock Text="Private repository" FontSize="18" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource BrandAshBrush}"
@@ -300,8 +284,6 @@
             <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" FontSize="12"
                        Foreground="{DynamicResource BrandParchmentBrush}" VerticalAlignment="Center" />
           </StackPanel>
-          <Button Classes="primary" Content="Continue" Command="{Binding ContinueCommand}"
-                  HorizontalAlignment="Right" Margin="0,4,0,0" />
         </StackPanel>
 
         <StackPanel IsVisible="{Binding IsFolderStep}" Spacing="12" MaxWidth="470" HorizontalAlignment="Left">
@@ -314,15 +296,13 @@
             <Button Classes="secondary" Grid.Column="1" Content="Browse…"
                     Command="{Binding BrowseFolderCommand}" />
           </Grid>
-          <Button Classes="primary" Content="Continue" Command="{Binding ContinueCommand}"
-                  HorizontalAlignment="Right" Margin="0,8,0,0" />
         </StackPanel>
 
         <StackPanel IsVisible="{Binding IsPreferencesStep}" Spacing="12">
           <TextBlock Text="Sync preferences" FontSize="18" FontWeight="SemiBold" />
-          <StackPanel Orientation="Horizontal" Spacing="12">
+          <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
             <RadioButton Classes="modeCard" GroupName="syncMode" IsChecked="{Binding UseAutoMode}">
-              <StackPanel Width="142" Spacing="8">
+              <StackPanel Spacing="8">
                 <Panel Height="42">
                   <Panel HorizontalAlignment="Center">
                     <Ellipse Width="34" Height="34" StrokeThickness="1.5"
@@ -342,8 +322,8 @@
                            Foreground="{DynamicResource BrandAshBrush}" />
               </StackPanel>
             </RadioButton>
-            <RadioButton Classes="modeCard" GroupName="syncMode" IsChecked="{Binding UseSemiAutoMode}">
-              <StackPanel Width="142" Spacing="8">
+            <RadioButton Classes="modeCard" GroupName="syncMode" Grid.Column="1" IsChecked="{Binding UseSemiAutoMode}">
+              <StackPanel Spacing="8">
                 <Panel Height="42">
                   <Panel HorizontalAlignment="Center">
                     <Ellipse Width="34" Height="34" StrokeThickness="1.5"
@@ -363,8 +343,8 @@
                            TextAlignment="Center" Foreground="{DynamicResource BrandAshBrush}" />
               </StackPanel>
             </RadioButton>
-            <RadioButton Classes="modeCard" GroupName="syncMode" IsChecked="{Binding UseManualMode}">
-              <StackPanel Width="142" Spacing="8">
+            <RadioButton Classes="modeCard" GroupName="syncMode" Grid.Column="2" IsChecked="{Binding UseManualMode}">
+              <StackPanel Spacing="8">
                 <Panel Height="42">
                   <Panel HorizontalAlignment="Center">
                     <Ellipse Width="34" Height="34" StrokeThickness="1"
@@ -392,15 +372,13 @@
                            TextAlignment="Center" Foreground="{DynamicResource BrandAshBrush}" />
               </StackPanel>
             </RadioButton>
-          </StackPanel>
+          </Grid>
           <Grid ColumnDefinitions="*,*" ColumnSpacing="10" Margin="0,4,0,0">
             <TextBox Text="{Binding IdentityName}" Watermark="commit name"
                      FontFamily="{StaticResource MonoFont}" />
             <TextBox Grid.Column="1" Text="{Binding IdentityEmail}" Watermark="commit email"
                      FontFamily="{StaticResource MonoFont}" />
           </Grid>
-          <Button Classes="primary" Content="Continue" Command="{Binding ContinueCommand}"
-                  HorizontalAlignment="Right" Margin="0,4,0,0" />
         </StackPanel>
 
         <StackPanel IsVisible="{Binding IsBootstrapStep}" Spacing="12">
@@ -409,60 +387,60 @@
                      Text="{Binding PlanSummary}" IsVisible="{Binding HasPlan}" />
           <Grid ColumnDefinitions="*,12,*" RowDefinitions="Auto,12,Auto" MaxWidth="520" HorizontalAlignment="Left">
             <Border Classes="planCard" Classes.active="{Binding PlanIsCheckoutRemote}">
-              <StackPanel Orientation="Horizontal" Spacing="12">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                 <Panel Width="26" Height="26" VerticalAlignment="Center">
                   <Path StrokeThickness="1.5" Stroke="{DynamicResource BrandAshBrush}"
                         Data="M 13 4 V 16 M 8.5 11.5 L 13 16 L 17.5 11.5 M 5 21 H 21" />
                 </Panel>
-                <StackPanel Spacing="3">
+                <StackPanel Grid.Column="1" Spacing="3">
                   <TextBlock Text="Checkout remote" FontFamily="{StaticResource MonoFont}" FontSize="12"
                              Foreground="{DynamicResource BrandParchmentBrush}" />
                   <TextBlock Text="folder is empty; the repository history is checked out" FontSize="11"
                              TextWrapping="Wrap" Foreground="{DynamicResource BrandAshBrush}" />
                 </StackPanel>
-              </StackPanel>
+              </Grid>
             </Border>
             <Border Classes="planCard" Classes.active="{Binding PlanIsPublishFolder}" Grid.Column="2">
-              <StackPanel Orientation="Horizontal" Spacing="12">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                 <Panel Width="26" Height="26" VerticalAlignment="Center">
                   <Path StrokeThickness="1.5" Stroke="{DynamicResource BrandAshBrush}"
                         Data="M 13 16 V 4 M 8.5 8.5 L 13 4 L 17.5 8.5 M 5 21 H 21" />
                 </Panel>
-                <StackPanel Spacing="3">
+                <StackPanel Grid.Column="1" Spacing="3">
                   <TextBlock Text="Publish folder" FontFamily="{StaticResource MonoFont}" FontSize="12"
                              Foreground="{DynamicResource BrandParchmentBrush}" />
                   <TextBlock Text="repository is empty; the folder becomes the first commit" FontSize="11"
                              TextWrapping="Wrap" Foreground="{DynamicResource BrandAshBrush}" />
                 </StackPanel>
-              </StackPanel>
+              </Grid>
             </Border>
             <Border Classes="planCard" Classes.active="{Binding PlanIsWatchEmpty}" Grid.Row="2">
-              <StackPanel Orientation="Horizontal" Spacing="12">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                 <Panel Width="26" Height="26" VerticalAlignment="Center">
                   <Rectangle Width="16" Height="18" StrokeThickness="1.5"
                              Stroke="{DynamicResource BrandAshBrush}" HorizontalAlignment="Center" />
                 </Panel>
-                <StackPanel Spacing="3">
+                <StackPanel Grid.Column="1" Spacing="3">
                   <TextBlock Text="Watch empty" FontFamily="{StaticResource MonoFont}" FontSize="12"
                              Foreground="{DynamicResource BrandParchmentBrush}" />
                   <TextBlock Text="both sides empty; sync starts from a clean slate" FontSize="11"
                              TextWrapping="Wrap" Foreground="{DynamicResource BrandAshBrush}" />
                 </StackPanel>
-              </StackPanel>
+              </Grid>
             </Border>
             <Border Classes="planCard" Classes.active="{Binding NeedsChoice}" Grid.Row="2" Grid.Column="2">
-              <StackPanel Orientation="Horizontal" Spacing="12">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                 <Panel Width="26" Height="26" VerticalAlignment="Center">
                   <Path StrokeThickness="1.5" Stroke="{DynamicResource BrandAshBrush}"
                         Data="M 6 20 L 20 6 M 15.5 6 H 20 V 10.5 M 20 20 L 6 6 M 10.5 6 H 6 V 10.5" />
                 </Panel>
-                <StackPanel Spacing="3">
+                <StackPanel Grid.Column="1" Spacing="3">
                   <TextBlock Text="Decide" FontFamily="{StaticResource MonoFont}" FontSize="12"
                              Foreground="{DynamicResource BrandParchmentBrush}" />
                   <TextBlock Text="both sides carry content; choose which side wins" FontSize="11"
                              TextWrapping="Wrap" Foreground="{DynamicResource BrandAshBrush}" />
                 </StackPanel>
-              </StackPanel>
+              </Grid>
             </Border>
           </Grid>
           <StackPanel IsVisible="{Binding NeedsChoice}" Spacing="10" Margin="0,4,0,0">
@@ -476,23 +454,6 @@
               <Button Classes="secondary" Content="Cancel" Command="{Binding CancelCommand}" />
             </StackPanel>
           </StackPanel>
-          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" IsVisible="{Binding !NeedsChoice}">
-            <Button Classes="secondary" Content="Cancel" Command="{Binding CancelCommand}"
-                    IsVisible="{Binding !CanFinish}" />
-            <Button Classes="primary" Content="Finish" Command="{Binding FinishCommand}"
-                    IsVisible="{Binding CanFinish}" />
-          </StackPanel>
-        </StackPanel>
-
-        <StackPanel IsVisible="{Binding IsCompleted}" Spacing="12" MaxWidth="430" HorizontalAlignment="Left">
-          <Image Source="avares://syncrowatch/Assets/wizard/wizard-step-completed.png" Height="262"
-                 HorizontalAlignment="Left" Margin="52,0,0,0" />
-          <TextBlock Text="Sync is live" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" />
-          <TextBlock TextWrapping="Wrap" FontSize="12" TextAlignment="Center"
-                     Foreground="{DynamicResource BrandAshBrush}"
-                     Text="The folder is bound to the repository. Syncrowatch watches changes from the tray." />
-          <Button Classes="secondary" Content="Close" Command="{Binding CloseCommand}"
-                  HorizontalAlignment="Right" Margin="0,4,0,0" />
         </StackPanel>
 
         <StackPanel IsVisible="{Binding !IsRepositoryStep}" Margin="0,10,0,0" Spacing="8">
@@ -507,5 +468,82 @@
         </StackPanel>
       </StackPanel>
     </ScrollViewer>
+
+    <Grid Grid.Column="1" Grid.Row="0" IsVisible="{Binding IsTokenStep}" Margin="26,20,26,18">
+      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="430" Spacing="14">
+        <Image Source="{StaticResource WizardHeroSigil}" Height="248" HorizontalAlignment="Center" />
+        <TextBox Text="{Binding AccessToken}"
+                 PasswordChar="•"
+                 Watermark="github personal access token"
+                 FontFamily="{StaticResource MonoFont}"
+                 CaretBrush="{DynamicResource BrandEmberBrush}" />
+        <TextBlock Text="await Syncrowatch();" FontFamily="{StaticResource MonoFont}" FontSize="13"
+                   Foreground="{DynamicResource BrandAshBrush}" HorizontalAlignment="Center" Margin="0,4,0,0" />
+        <TextBlock TextWrapping="Wrap" FontSize="11"
+                   Foreground="{DynamicResource BrandAshBrush}"
+                   Text="Stored in your user profile with owner-only permissions." />
+        <StackPanel IsVisible="{Binding HasError}" Orientation="Horizontal" Spacing="10">
+          <TextBlock Text=";" FontFamily="{StaticResource MonoFont}" FontSize="19" FontWeight="SemiBold"
+                     Foreground="{DynamicResource BrandEmberBrush}" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" FontSize="12"
+                     Foreground="{DynamicResource BrandParchmentBrush}" VerticalAlignment="Center" />
+        </StackPanel>
+      </StackPanel>
+    </Grid>
+
+    <Grid Grid.Column="1" Grid.Row="0" IsVisible="{Binding IsCompleted}" Margin="26,20,26,18">
+      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
+        <Image Source="avares://syncrowatch/Assets/wizard/wizard-step-completed.png" Height="262"
+               HorizontalAlignment="Center" />
+        <TextBlock Text="Sync is live" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" />
+        <TextBlock TextWrapping="Wrap" FontSize="12" TextAlignment="Center" MaxWidth="430"
+                   Foreground="{DynamicResource BrandAshBrush}"
+                   Text="The folder is bound to the repository. Syncrowatch watches changes from the tray." />
+      </StackPanel>
+    </Grid>
+
+    <Grid Grid.Column="1" Grid.Row="1" ColumnDefinitions="*,Auto" Margin="26,12,26,18">
+      <Button Classes="secondary" Content="Back" Command="{Binding BackCommand}" HorizontalAlignment="Left">
+        <Button.IsVisible>
+          <MultiBinding Converter="{x:Static BoolConverters.Or}">
+            <Binding Path="IsRepositoryStep" />
+            <Binding Path="IsFolderStep" />
+            <Binding Path="IsPreferencesStep" />
+            <Binding Path="IsBootstrapStep" />
+          </MultiBinding>
+        </Button.IsVisible>
+      </Button>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+        <Button Classes="primary" Content="Continue" Command="{Binding ContinueCommand}">
+          <Button.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.Or}">
+              <Binding Path="IsTokenStep" />
+              <Binding Path="IsRepositoryStep" />
+              <Binding Path="IsFolderStep" />
+              <Binding Path="IsPreferencesStep" />
+            </MultiBinding>
+          </Button.IsVisible>
+        </Button>
+        <Button Classes="secondary" Content="Cancel" Command="{Binding CancelCommand}">
+          <Button.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="IsBootstrapStep" />
+              <Binding Path="!NeedsChoice" />
+              <Binding Path="!CanFinish" />
+            </MultiBinding>
+          </Button.IsVisible>
+        </Button>
+        <Button Classes="primary" Content="Finish" Command="{Binding FinishCommand}">
+          <Button.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="IsBootstrapStep" />
+              <Binding Path="!NeedsChoice" />
+              <Binding Path="CanFinish" />
+            </MultiBinding>
+          </Button.IsVisible>
+        </Button>
+        <Button Classes="secondary" Content="Close" Command="{Binding CloseCommand}" IsVisible="{Binding IsCompleted}" />
+      </StackPanel>
+    </Grid>
   </Grid>
 </Window>
