@@ -134,8 +134,8 @@ Linux, single self-contained binary, no installer.
 
 First run opens a six-step wizard: token → repository → folder →
 preferences → bootstrap → completed. Back navigation moves one step back
-with everything entered preserved — the token step re-opens empty, since
-the stored credential is never shown again. The bootstrap step handles the
+with everything entered preserved — the token step re-fills from the
+stored credential, shown masked; re-entering replaces it. The bootstrap step handles the
 case where both the folder and the repository already hold content:
 explicit scenario cards decide whose state wins.
 
@@ -217,20 +217,18 @@ Prebuilt binaries live on the
 repository is private, so access is required. All binaries are
 self-contained single-file executables: no .NET runtime, no installer.
 
-- **syncrowatch** — latest published binaries on **v0.1.3**: `syncrowatch`
+- **syncrowatch** — latest published binaries on **v0.1.4**: `syncrowatch`
   (linux-x64) and `syncrowatch.exe` (win-x64), shipped with a checksum
   manifest.
 - **synchro** — latest published CLI binaries on **v0.1.2** (`synchro`,
   `synchro.exe`). The CLI dropped out of the release train after v0.1.2;
   for the current head, build from source.
-- **v0.1.4** (the current latest tag) attaches only a checksum manifest —
-  no binaries yet.
 
 Verify the checksum after download — Linux:
 
 ```bash
 sha256sum syncrowatch
-# compare against the linux-x64/syncrowatch line in sha256-0.1.3.txt
+# compare against the linux-x64/syncrowatch line in sha256-0.1.4.txt
 chmod +x syncrowatch && ./syncrowatch
 ```
 
@@ -238,7 +236,7 @@ Windows (PowerShell):
 
 ```powershell
 Get-FileHash .\syncrowatch.exe -Algorithm SHA256
-# compare against the win-x64/syncrowatch.exe line in sha256-0.1.3.txt
+# compare against the win-x64/syncrowatch.exe line in sha256-0.1.4.txt
 .\syncrowatch.exe
 ```
 
