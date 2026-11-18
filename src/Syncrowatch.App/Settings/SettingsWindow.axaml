@@ -5,7 +5,7 @@
         x:DataType="vm:SettingsViewModel"
         x:CompileBindings="True"
         Title="Syncrowatch settings"
-        Width="560" Height="430"
+        Width="560" Height="460"
         CanResize="False"
         WindowStartupLocation="CenterScreen">
   <Window.Resources>
