@@ -197,6 +197,27 @@ public class BootstrapperTests
     }
 
     [Fact]
+    public async Task Execute_BothNonEmptyFolderWins_AlreadyInSync_CompletesWithoutPublish()
+    {
+        using var standIn = new StandIn(seededRepo: true);
+        File.WriteAllText(Path.Combine(standIn.FolderPath, ".DS_Store"), "ignored junk");
+        var bareTipBefore = GitCli.Head(standIn.BarePath);
+
+        var plan = Ok(await standIn.Bootstrapper.Assess(CancellationToken.None));
+        plan.ShouldBeOfType<BootstrapPlan.Decide>();
+        var outcome = await standIn.Bootstrapper.Execute(plan, BootstrapDirection.FolderWins, CancellationToken.None);
+
+        var ok = outcome.ShouldBeOfType<Result<BootstrapOutcome>.Ok>();
+        var completed = ok.Value.ShouldBeOfType<BootstrapOutcome.Completed>();
+        completed.Flow.ShouldBe(BootstrapFlow.FolderInSync);
+        completed.Branch.ShouldBe("main");
+        completed.Sha.ShouldBeEmpty();
+        GitCli.Head(standIn.BarePath).ShouldBe(bareTipBefore);
+        TrackedFiles(standIn.FolderPath).ShouldBeEmpty();
+        standIn.Environment.AssertGlobalConfigIsolated();
+    }
+
+    [Fact]
     public async Task Execute_BothNonEmptyRepoWins_TracksRemoteWithoutTouchingFiles()
     {
         using var standIn = new StandIn(seededRepo: true);
@@ -263,6 +284,34 @@ public class BootstrapperTests
         var outcome = await harness.Bootstrapper.Execute(plan, null, CancellationToken.None);
 
         outcome.ShouldBeOfType<Result<BootstrapOutcome>.Fail>().Error.Code.ShouldBe("invalid");
+        await local.DidNotReceive().Commit(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await remote.DidNotReceive().Push(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await remote.DidNotReceive().PushForceWithLease(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Execute_BothNonEmptyFolderWins_EmptyStagedTree_SucceedsWithoutPush()
+    {
+        var remote = Substitute.For<IRemoteRepository>();
+        remote.ListBranch(Arg.Any<CancellationToken>())
+            .Returns(new Result<IReadOnlyList<RemoteRef>>.Ok([new RemoteRef("main", "abc123")]));
+        var local = PreparedLocal();
+        local.IsWorkingTreeEmpty(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new Result<bool>.Ok(true));
+        local.HeadInfo(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new Result<LocalHead>.Ok(new LocalHead("main", string.Empty)));
+        using var harness = SubstituteHarness.Create(StandInUrl, remote, local);
+        File.WriteAllText(Path.Combine(harness.FolderPath, "swap.tmp"), "ignored junk");
+
+        var plan = Ok(await harness.Bootstrapper.Assess(CancellationToken.None));
+        var outcome = await harness.Bootstrapper.Execute(plan, BootstrapDirection.FolderWins, CancellationToken.None);
+
+        var ok = outcome.ShouldBeOfType<Result<BootstrapOutcome>.Ok>();
+        var completed = ok.Value.ShouldBeOfType<BootstrapOutcome.Completed>();
+        completed.Flow.ShouldBe(BootstrapFlow.FolderInSync);
+        completed.Branch.ShouldBe("main");
+        completed.Sha.ShouldBeEmpty();
         await local.DidNotReceive().Commit(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await remote.DidNotReceive().Push(Arg.Any<string>(), Arg.Any<CancellationToken>());
         await remote.DidNotReceive().PushForceWithLease(
