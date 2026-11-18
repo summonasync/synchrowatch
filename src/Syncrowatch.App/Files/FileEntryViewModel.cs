@@ -23,8 +23,17 @@ public sealed class FileEntryViewModel(string path, string statusText) : INotify
 
             _statusText = value;
             Notify();
+            Notify(nameof(IsClean));
+            Notify(nameof(IsPendingBatch));
+            Notify(nameof(IsUnpushed));
         }
     }
+
+    public bool IsClean => _statusText == "clean";
+
+    public bool IsPendingBatch => _statusText == "pending batch";
+
+    public bool IsUnpushed => _statusText == "unpushed";
 
     private void Notify([CallerMemberName] string? name = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

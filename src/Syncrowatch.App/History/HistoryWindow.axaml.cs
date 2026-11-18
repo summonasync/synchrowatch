@@ -21,7 +21,8 @@ public partial class HistoryWindow : Window
         _services = services;
         _viewModel = new HistoryViewModel(
             services.GetRequiredService<ISyncEventStore>(),
-            services.GetRequiredService<IPendingConflictReader>());
+            services.GetRequiredService<IPendingConflictReader>(),
+            services.GetRequiredService<IConflictResolver>());
         DataContext = _viewModel;
         Opened += (_, _) => _ = _viewModel.RefreshAsync();
     }

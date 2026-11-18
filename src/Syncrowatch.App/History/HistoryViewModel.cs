@@ -3,7 +3,9 @@ using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using Synchro.Core;
 using Syncrowatch.App.Wizard;
+using Syncrowatch.Core.Engine.Conflicts;
 using Syncrowatch.Core.History;
+using HistoryConflict = Syncrowatch.Core.History.PendingConflict;
 
 namespace Syncrowatch.App.History;
 
@@ -13,6 +15,7 @@ public sealed class HistoryViewModel : INotifyPropertyChanged
 
     private readonly ISyncEventStore _store;
     private readonly IPendingConflictReader _conflicts;
+    private readonly IConflictResolver? _resolver;
     private readonly TimeProvider _time;
     private SyncEventKind? _filter;
     private IReadOnlyList<HistoryEntryViewModel> _entries = [];
@@ -22,10 +25,12 @@ public sealed class HistoryViewModel : INotifyPropertyChanged
     public HistoryViewModel(
         ISyncEventStore store,
         IPendingConflictReader conflicts,
+        IConflictResolver? resolver = null,
         TimeProvider? timeProvider = null)
     {
         _store = store;
         _conflicts = conflicts;
+        _resolver = resolver;
         _time = timeProvider ?? TimeProvider.System;
         RefreshCommand = new AsyncCommand(LoadAsync, () => true, ReportFailure);
     }
@@ -37,8 +42,19 @@ public sealed class HistoryViewModel : INotifyPropertyChanged
     public IReadOnlyList<HistoryEntryViewModel> Entries
     {
         get => _entries;
-        private set => SetField(ref _entries, value);
+        private set
+        {
+            if (SetField(ref _entries, value))
+            {
+                Notify(nameof(HasEntries));
+                Notify(nameof(IsEmpty));
+            }
+        }
     }
+
+    public bool HasEntries => _entries.Count > 0;
+
+    public bool IsEmpty => _entries.Count == 0 && !HasError;
 
     public IReadOnlyList<PendingConflictViewModel> PendingConflicts
     {
@@ -62,6 +78,7 @@ public sealed class HistoryViewModel : INotifyPropertyChanged
             if (SetField(ref _errorMessage, value))
             {
                 Notify(nameof(HasError));
+                Notify(nameof(IsEmpty));
             }
         }
     }
@@ -116,6 +133,25 @@ public sealed class HistoryViewModel : INotifyPropertyChanged
         }
     }
 
+    private async Task ResolveConflictAsync(string relativePath, ConflictOption option)
+    {
+        if (_resolver is null)
+        {
+            return;
+        }
+
+        var resolved = await _resolver.Resolve(relativePath, option, CancellationToken.None).ConfigureAwait(true);
+        switch (resolved)
+        {
+            case Result<ConflictResolution>.Ok:
+                await LoadAsync().ConfigureAwait(true);
+                break;
+            case Result<ConflictResolution>.Fail refusal:
+                ErrorMessage = refusal.Error.Message;
+                break;
+        }
+    }
+
     private async Task LoadAsync()
     {
         var now = _time.GetUtcNow();
@@ -129,19 +165,19 @@ public sealed class HistoryViewModel : INotifyPropertyChanged
         var pending = await _conflicts.Read(CancellationToken.None).ConfigureAwait(true);
         switch (events, pending)
         {
-            case (Result<IReadOnlyList<SyncEvent>>.Ok timeline, Result<IReadOnlyList<PendingConflict>>.Ok unresolved):
+            case (Result<IReadOnlyList<SyncEvent>>.Ok timeline, Result<IReadOnlyList<HistoryConflict>>.Ok unresolved):
                 ErrorMessage = null;
                 Entries = timeline.Value
-                    .Select(@event => new HistoryEntryViewModel(@event, now))
+                    .Select((@event, index) => new HistoryEntryViewModel(@event, now, index == 0))
                     .ToList();
                 PendingConflicts = unresolved.Value
-                    .Select(conflict => new PendingConflictViewModel(conflict, now))
+                    .Select(conflict => new PendingConflictViewModel(conflict, now, ResolveConflictAsync))
                     .ToList();
                 break;
             case (Result<IReadOnlyList<SyncEvent>>.Fail refusal, _):
                 ErrorMessage = refusal.Error.Message;
                 break;
-            case (_, Result<IReadOnlyList<PendingConflict>>.Fail refusal):
+            case (_, Result<IReadOnlyList<HistoryConflict>>.Fail refusal):
                 ErrorMessage = refusal.Error.Message;
                 break;
         }

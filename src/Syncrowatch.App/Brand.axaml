@@ -7,4 +7,8 @@
   <SolidColorBrush x:Key="BrandAshBrush" Color="#8A9089" />
   <SolidColorBrush x:Key="BrandEmberBrush" Color="#FF6B35" />
   <SolidColorBrush x:Key="BrandLineBrush" Color="#232A26" />
+  <SolidColorBrush x:Key="BrandEmberHoverBrush" Color="#FF8352" />
+  <SolidColorBrush x:Key="BrandEmberPressBrush" Color="#E85C28" />
+  <SolidColorBrush x:Key="BrandSurfaceHoverBrush" Color="#12E8E4D9" />
+  <SolidColorBrush x:Key="BrandSurfacePressBrush" Color="#1FE8E4D9" />
 </ResourceDictionary>

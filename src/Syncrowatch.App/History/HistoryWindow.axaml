@@ -5,31 +5,180 @@
         x:DataType="vm:HistoryViewModel"
         x:CompileBindings="True"
         Title="Syncrowatch history"
-        Width="660" Height="480"
+        Width="740" Height="520"
         WindowStartupLocation="CenterScreen">
-  <Grid Margin="16" RowDefinitions="Auto,*,Auto,Auto">
-    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
-      <RadioButton GroupName="historyFilter" Content="All" IsChecked="{Binding ShowAll}" MinWidth="56" />
-      <RadioButton GroupName="historyFilter" Content="Pulled" IsChecked="{Binding ShowPulled}" />
-      <RadioButton GroupName="historyFilter" Content="Pushed" IsChecked="{Binding ShowPushed}" />
-      <RadioButton GroupName="historyFilter" Content="Merges" IsChecked="{Binding ShowMerges}" />
-      <RadioButton GroupName="historyFilter" Content="Conflicts" IsChecked="{Binding ShowConflicts}" />
-      <RadioButton GroupName="historyFilter" Content="Failures" IsChecked="{Binding ShowFailures}" />
-      <Button Content="Refresh" Command="{Binding RefreshCommand}" HorizontalAlignment="Right" Margin="12,0,0,0" />
-      <Button Content="Open files" Click="OnOpenFilesClicked" HorizontalAlignment="Right" Margin="12,0,0,0" />
-    </StackPanel>
+  <Window.Resources>
+    <FontFamily x:Key="MonoFont">JetBrains Mono NL, Consolas, DejaVu Sans Mono, monospace</FontFamily>
+  </Window.Resources>
 
-    <ScrollViewer Grid.Row="1">
+  <Window.Styles>
+    <Style Selector="RadioButton.pill">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource BrandParchmentBrush}" />
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Padding" Value="9,4" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border x:Name="pillChrome"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{DynamicResource BrandLineBrush}"
+                  BorderThickness="1"
+                  CornerRadius="3"
+                  Padding="{TemplateBinding Padding}">
+            <ContentPresenter Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              TextBlock.Foreground="{TemplateBinding Foreground}" />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="RadioButton.pill TextBlock.glyph">
+      <Setter Property="Foreground" Value="{DynamicResource BrandAshBrush}" />
+    </Style>
+    <Style Selector="RadioButton.pill:pointerover /template/ Border#pillChrome">
+      <Setter Property="BorderBrush" Value="{DynamicResource BrandAshBrush}" />
+    </Style>
+    <Style Selector="RadioButton.pill:checked">
+      <Setter Property="Foreground" Value="{DynamicResource BrandEmberBrush}" />
+    </Style>
+    <Style Selector="RadioButton.pill:checked TextBlock.glyph">
+      <Setter Property="Foreground" Value="{DynamicResource BrandEmberBrush}" />
+    </Style>
+    <Style Selector="RadioButton.pill:checked /template/ Border#pillChrome">
+      <Setter Property="BorderBrush" Value="{DynamicResource BrandEmberBrush}" />
+    </Style>
+
+    <Style Selector="Button.secondary">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource BrandParchmentBrush}" />
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BrandAshBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="14,5" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border x:Name="actionChrome"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  Padding="{TemplateBinding Padding}">
+            <ContentPresenter Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              TextBlock.Foreground="{TemplateBinding Foreground}" />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="Button.secondary:pointerover /template/ Border#actionChrome">
+      <Setter Property="Background" Value="{DynamicResource BrandSurfaceHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BrandParchmentBrush}" />
+    </Style>
+    <Style Selector="Button.secondary:pressed /template/ Border#actionChrome">
+      <Setter Property="Background" Value="{DynamicResource BrandSurfacePressBrush}" />
+    </Style>
+    <Style Selector="Button.secondary:disabled /template/ Border#actionChrome">
+      <Setter Property="Opacity" Value="0.4" />
+    </Style>
+    <Style Selector="Button.secondary.chosen">
+      <Setter Property="Foreground" Value="{DynamicResource BrandEmberBrush}" />
+    </Style>
+    <Style Selector="Button.secondary.chosen /template/ Border#actionChrome">
+      <Setter Property="BorderBrush" Value="{DynamicResource BrandEmberBrush}" />
+    </Style>
+
+    <Style Selector="TextBlock.eventGlyph">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Foreground" Value="{DynamicResource BrandParchmentBrush}" />
+    </Style>
+    <Style Selector="TextBlock.eventGlyph.attention">
+      <Setter Property="Foreground" Value="{DynamicResource BrandEmberBrush}" />
+    </Style>
+    <Style Selector="TextBlock.columnLabel">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource BrandAshBrush}" />
+    </Style>
+    <Style Selector="TextBlock.columnValue">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource BrandParchmentBrush}" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+  </Window.Styles>
+
+  <Grid Margin="16" RowDefinitions="Auto,*,Auto,Auto">
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+      <WrapPanel>
+        <RadioButton Classes="pill" GroupName="historyFilter" Margin="0,0,6,6" IsChecked="{Binding ShowAll}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Classes="glyph" Text="await" />
+            <TextBlock Text="All" />
+          </StackPanel>
+        </RadioButton>
+        <RadioButton Classes="pill" GroupName="historyFilter" Margin="0,0,6,6" IsChecked="{Binding ShowPulled}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Classes="glyph" Text="=&gt;" />
+            <TextBlock Text="Pulled" />
+          </StackPanel>
+        </RadioButton>
+        <RadioButton Classes="pill" GroupName="historyFilter" Margin="0,0,6,6" IsChecked="{Binding ShowPushed}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Classes="glyph" Text="()" />
+            <TextBlock Text="Pushed" />
+          </StackPanel>
+        </RadioButton>
+        <RadioButton Classes="pill" GroupName="historyFilter" Margin="0,0,6,6" IsChecked="{Binding ShowMerges}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Classes="glyph" Text="{}{}" />
+            <TextBlock Text="Merges" />
+          </StackPanel>
+        </RadioButton>
+        <RadioButton Classes="pill" GroupName="historyFilter" Margin="0,0,6,6" IsChecked="{Binding ShowConflicts}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Classes="glyph" Text="!=" />
+            <TextBlock Text="Conflicts" />
+          </StackPanel>
+        </RadioButton>
+        <RadioButton Classes="pill" GroupName="historyFilter" Margin="0,0,6,6" IsChecked="{Binding ShowFailures}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Classes="glyph" Text=";" />
+            <TextBlock Text="Failures" />
+          </StackPanel>
+        </RadioButton>
+      </WrapPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button Classes="secondary" Content="Refresh" Command="{Binding RefreshCommand}" />
+        <Button Classes="secondary" Content="Open files" Click="OnOpenFilesClicked" />
+      </StackPanel>
+    </Grid>
+
+    <ScrollViewer Grid.Row="1" IsVisible="{Binding HasEntries}">
       <ItemsControl ItemsSource="{Binding Entries}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:HistoryEntryViewModel">
-            <Border Padding="0,7" BorderBrush="#33808080" BorderThickness="0,0,0,1">
-              <Grid ColumnDefinitions="86,72,*,200">
-                <TextBlock Text="{Binding Label}" FontWeight="SemiBold" FontSize="12" />
-                <TextBlock Grid.Column="1" Text="{Binding TimeText}" Foreground="Gray" FontSize="11" />
-                <TextBlock Grid.Column="2" Text="{Binding Detail}" FontSize="12" TextWrapping="Wrap" />
-                <TextBlock Grid.Column="3" Text="{Binding Files}" FontSize="11" Foreground="#606060"
-                           TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
+            <Border Padding="0,9" BorderBrush="{DynamicResource BrandLineBrush}" BorderThickness="0,0,0,1">
+              <Grid ColumnDefinitions="18,44,*,Auto">
+                <Ellipse Width="9" Height="9" Fill="{DynamicResource BrandEmberBrush}"
+                         VerticalAlignment="Center" IsVisible="{Binding IsLatest}" />
+                <TextBlock Grid.Column="1" Classes="eventGlyph" Classes.attention="{Binding IsAttention}"
+                           Text="{Binding Glyph}" Margin="0,1,0,0" />
+                <StackPanel Grid.Column="2" Spacing="3" Margin="0,0,12,0">
+                  <TextBlock Text="{Binding Label}" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                             FontWeight="SemiBold" Foreground="{DynamicResource BrandParchmentBrush}" />
+                  <TextBlock Text="{Binding Detail}" FontSize="11" TextWrapping="Wrap"
+                             Foreground="{DynamicResource BrandAshBrush}" />
+                  <TextBlock Text="{Binding Files}" FontSize="11" TextWrapping="Wrap"
+                             TextTrimming="CharacterEllipsis" IsVisible="{Binding HasFiles}"
+                             Foreground="{DynamicResource BrandAshBrush}" />
+                </StackPanel>
+                <TextBlock Grid.Column="3" Text="{Binding TimeText}" FontFamily="{StaticResource MonoFont}"
+                           FontSize="11" Foreground="{DynamicResource BrandAshBrush}" />
               </Grid>
             </Border>
           </DataTemplate>
@@ -37,25 +186,73 @@
       </ItemsControl>
     </ScrollViewer>
 
-    <StackPanel Grid.Row="2" Margin="0,12,0,0" Spacing="6" IsVisible="{Binding HasPendingConflicts}">
-      <TextBlock Text="Waiting for your pick" FontWeight="SemiBold" />
+    <StackPanel Grid.Row="1" IsVisible="{Binding IsEmpty}" MaxWidth="340"
+                HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+      <Image Source="avares://syncrowatch/Assets/empty/empty-history.png" Width="142"
+             HorizontalAlignment="Center" Margin="0,0,0,4" />
+      <TextBlock Text="Nothing synced yet" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                 Foreground="{DynamicResource BrandParchmentBrush}" HorizontalAlignment="Center" />
+      <TextBlock Text="Pulled, pushed and merged commits will land here." FontSize="11"
+                 TextWrapping="Wrap" TextAlignment="Center"
+                 Foreground="{DynamicResource BrandAshBrush}" />
+    </StackPanel>
+
+    <StackPanel Grid.Row="2" Margin="0,12,0,0" Spacing="8" IsVisible="{Binding HasPendingConflicts}">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="Waiting for your pick" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                   FontWeight="SemiBold" Foreground="{DynamicResource BrandParchmentBrush}" />
+        <TextBlock Grid.Column="1" Text="=&gt;" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                   Foreground="{DynamicResource BrandAshBrush}" Margin="12,0,0,0" />
+      </Grid>
       <ItemsControl ItemsSource="{Binding PendingConflicts}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:PendingConflictViewModel">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <TextBlock Text="{Binding Path}" FontWeight="SemiBold" FontSize="12" />
-              <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="Gray" />
-              <TextBlock Text="{Binding TimeText}" FontSize="11" Foreground="Gray" />
-            </StackPanel>
+            <Border Margin="0,2,0,0" Padding="14,12" CornerRadius="4"
+                    BorderBrush="{DynamicResource BrandEmberBrush}" BorderThickness="1">
+              <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="{Binding Path}" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                             FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Grid.Column="1" Text="{Binding TimeText}" FontFamily="{StaticResource MonoFont}"
+                             FontSize="11" Foreground="{DynamicResource BrandAshBrush}" Margin="12,0,0,0" />
+                </Grid>
+                <Grid ColumnDefinitions="*,12,*,12,*">
+                  <StackPanel Spacing="4">
+                    <TextBlock Classes="columnLabel" Text="local" />
+                    <TextBlock Classes="columnValue" Text="{Binding LocalVersion}" />
+                  </StackPanel>
+                  <Rectangle Grid.Column="1" Width="1" Fill="{DynamicResource BrandLineBrush}" />
+                  <StackPanel Grid.Column="2" Spacing="4">
+                    <TextBlock Classes="columnLabel" Text="theirs" />
+                    <TextBlock Classes="columnValue" Text="{Binding TheirsVersion}" />
+                  </StackPanel>
+                  <Rectangle Grid.Column="3" Width="1" Fill="{DynamicResource BrandLineBrush}" />
+                  <StackPanel Grid.Column="4" Spacing="4">
+                    <TextBlock Classes="columnLabel" Text="base" />
+                    <TextBlock Classes="columnValue" Text="{Binding BaseVersion}" />
+                  </StackPanel>
+                </Grid>
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
+                  <Button Classes="secondary" Content="drop" Command="{Binding DropCommand}"
+                          HorizontalContentAlignment="Center" />
+                  <Button Classes="secondary" Grid.Column="1" Content="replace" Command="{Binding ReplaceCommand}"
+                          HorizontalContentAlignment="Center" />
+                  <Button Classes="secondary chosen" Grid.Column="2" Content="merge" Command="{Binding MergeCommand}"
+                          HorizontalContentAlignment="Center" />
+                </Grid>
+              </StackPanel>
+            </Border>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
     </StackPanel>
 
-    <TextBlock Grid.Row="3" Margin="0,10,0,0"
-               Text="{Binding ErrorMessage}"
-               Foreground="Crimson"
-               TextWrapping="Wrap"
-               IsVisible="{Binding HasError}" />
+    <StackPanel Grid.Row="3" Margin="0,10,0,0" Orientation="Horizontal" Spacing="10"
+                IsVisible="{Binding HasError}">
+      <TextBlock Text=";" FontFamily="{StaticResource MonoFont}" FontSize="19" FontWeight="SemiBold"
+                 Foreground="{DynamicResource BrandEmberBrush}" VerticalAlignment="Center" />
+      <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" FontSize="12"
+                 Foreground="{DynamicResource BrandParchmentBrush}" VerticalAlignment="Center" />
+    </StackPanel>
   </Grid>
 </Window>

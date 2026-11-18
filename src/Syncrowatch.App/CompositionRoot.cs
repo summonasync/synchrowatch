@@ -36,6 +36,10 @@ public static class CompositionRoot
         services.AddSingleton<SyncEventBus>();
         services.AddSingleton<ISyncEventBus>(sp => sp.GetRequiredService<SyncEventBus>());
         services.AddSingleton<IConflictStore>(new JsonConflictStore(dataDirectory));
+        services.AddSingleton<IConflictResolver>(sp => new PendingConflictResolver(
+            sp.GetRequiredService<ISyncConfigStore>(),
+            sp.GetRequiredService<ILocalGit>(),
+            sp.GetRequiredService<IConflictStore>()));
         services.AddSingleton<IPendingConflictReader>(sp => new ConflictPendingReader(
             sp.GetRequiredService<IConflictStore>()));
         services.AddSingleton<IRelaySeenState>(new RelaySeenStateStore(dataDirectory));
