@@ -1,8 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Syncrowatch.App.Files;
-using Syncrowatch.App.Settings;
 using Syncrowatch.App.History;
 using Syncrowatch.App.Notifications;
+using Syncrowatch.App.Settings;
 using Syncrowatch.App.Tray;
 using Syncrowatch.App.Wizard;
 using Syncrowatch.Core;

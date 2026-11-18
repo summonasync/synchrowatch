@@ -8,15 +8,29 @@ public sealed class SettingsRouter(
     Func<ISettingsSurface> wizard,
     Func<ISettingsSurface> preview) : ISettingsRouter
 {
+    public event EventHandler? WizardClosed;
+
     public async Task OpenAsync(CancellationToken cancellationToken = default)
     {
         var loaded = await configStore.Load(cancellationToken).ConfigureAwait(true);
-        if (loaded is Result<SyncConfig>.Ok)
-        {
-            preview().Show();
-            return;
-        }
+        var isConfigured = loaded is Result<SyncConfig>.Ok;
+        OpenSurface(isConfigured ? preview() : wizard(), raisesWizardClosed: !isConfigured);
+    }
 
-        wizard().Show();
+    public void OpenWizard() => OpenSurface(wizard(), raisesWizardClosed: true);
+
+    private void OpenSurface(ISettingsSurface surface, bool raisesWizardClosed)
+    {
+        EventHandler? onClosed = null;
+        onClosed = (_, _) =>
+        {
+            surface.Closed -= onClosed!;
+            if (raisesWizardClosed)
+            {
+                WizardClosed?.Invoke(this, EventArgs.Empty);
+            }
+        };
+        surface.Closed += onClosed;
+        surface.Show();
     }
 }

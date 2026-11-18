@@ -49,6 +49,63 @@ public class SettingsRouterTests
         harness.Preview.ReceivedCalls().ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task OpenWizard_ForcesWizardSurface()
+    {
+        var harness = new Harness();
+        harness.ConfigStore.Load(Arg.Any<CancellationToken>())
+            .Returns(new Result<SyncConfig>.Ok(ValidConfig()));
+
+        harness.Router.OpenWizard();
+
+        harness.Wizard.Received(1).Show();
+        harness.Preview.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void WizardClose_RaisesWizardClosed()
+    {
+        var harness = new Harness();
+        var closed = false;
+        harness.Router.WizardClosed += (_, _) => closed = true;
+
+        harness.Router.OpenWizard();
+        harness.Wizard.Closed += Raise.Event<EventHandler>(harness.Wizard, EventArgs.Empty);
+
+        closed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task PreviewClose_DoesNotRaiseWizardClosed()
+    {
+        var harness = new Harness();
+        harness.ConfigStore.Load(Arg.Any<CancellationToken>())
+            .Returns(new Result<SyncConfig>.Ok(ValidConfig()));
+        var closed = false;
+        harness.Router.WizardClosed += (_, _) => closed = true;
+
+        await harness.Router.OpenAsync();
+        harness.Preview.Closed += Raise.Event<EventHandler>(harness.Preview, EventArgs.Empty);
+
+        closed.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task WizardClose_AfterReroutedPreview_DetachesItself()
+    {
+        var harness = new Harness();
+        harness.ConfigStore.Load(Arg.Any<CancellationToken>())
+            .Returns(new Result<SyncConfig>.Fail(new SyncError("config_missing", "settings file absent")));
+        var closedCount = 0;
+        harness.Router.WizardClosed += (_, _) => closedCount++;
+
+        await harness.Router.OpenAsync();
+        harness.Wizard.Closed += Raise.Event<EventHandler>(harness.Wizard, EventArgs.Empty);
+        harness.Wizard.Closed += Raise.Event<EventHandler>(harness.Wizard, EventArgs.Empty);
+
+        closedCount.ShouldBe(1);
+    }
+
     private static SyncConfig ValidConfig() => new()
     {
         WatchedFolder = "/home/dev/slurpy",

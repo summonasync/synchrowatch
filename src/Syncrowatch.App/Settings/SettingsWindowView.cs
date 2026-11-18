@@ -8,6 +8,8 @@ public sealed class SettingsWindowView(IServiceProvider services) : ISettingsSur
     private readonly IServiceProvider _services = services;
     private SettingsWindow? _window;
 
+    public event EventHandler? Closed;
+
     public void Show()
     {
         if (_window is { } existing)
@@ -29,5 +31,6 @@ public sealed class SettingsWindowView(IServiceProvider services) : ISettingsSur
         }
 
         _window = null;
+        Closed?.Invoke(this, EventArgs.Empty);
     }
 }
