@@ -221,7 +221,7 @@ Prebuilt binaries live on the
 repository is private, so access is required. All binaries are
 self-contained single-file executables: no .NET runtime, no installer.
 
-- **syncrowatch** — latest published binaries on **v0.1.5**: `syncrowatch`
+- **syncrowatch** — latest published binaries on **v0.1.6**: `syncrowatch`
   (linux-x64) and `syncrowatch.exe` (win-x64), shipped with a checksum
   manifest.
 - **synchro** — latest published CLI binaries on **v0.1.2** (`synchro`,
@@ -232,7 +232,7 @@ Verify the checksum after download — Linux:
 
 ```bash
 sha256sum syncrowatch
-# compare against the linux-x64/syncrowatch line in sha256-0.1.5.txt
+# compare against the linux-x64/syncrowatch line in sha256-0.1.6.txt
 chmod +x syncrowatch && ./syncrowatch
 ```
 
@@ -240,7 +240,7 @@ Windows (PowerShell):
 
 ```powershell
 Get-FileHash .\syncrowatch.exe -Algorithm SHA256
-# compare against the win-x64/syncrowatch.exe line in sha256-0.1.5.txt
+# compare against the win-x64/syncrowatch.exe line in sha256-0.1.6.txt
 .\syncrowatch.exe
 ```
 
@@ -264,7 +264,7 @@ Release-style builds, from Ubuntu targeting both desktops:
 
 ```bash
 scripts/release.sh                    # synchro -> dist/{linux-x64,win-x64} + sha256 manifest
-scripts/release-syncrowatch.sh 0.1.5  # syncrowatch -> dist/syncrowatch-0.1.5/{linux-x64,win-x64}
+scripts/release-syncrowatch.sh 0.1.7  # syncrowatch -> dist/syncrowatch-0.1.7/{linux-x64,win-x64}
 ```
 
 ## Docs
