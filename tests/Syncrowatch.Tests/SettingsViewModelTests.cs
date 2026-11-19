@@ -3,6 +3,7 @@ using Shouldly;
 using Synchro.Core;
 using Syncrowatch.App.Settings;
 using Syncrowatch.Core;
+using Syncrowatch.Core.Autostart;
 using Syncrowatch.Core.Config;
 using Xunit;
 
@@ -114,6 +115,131 @@ public class SettingsViewModelTests
     }
 
     [Fact]
+    public async Task Reload_PreferenceStored_MapsLaunchAtLogin()
+    {
+        var harness = new Harness();
+        harness.Preferences.Load(Arg.Any<CancellationToken>())
+            .Returns(new Result<AppPreferences>.Ok(new AppPreferences { LaunchAtLogin = true }));
+
+        await harness.ViewModel.ReloadAsync();
+
+        harness.ViewModel.LaunchAtLogin.ShouldBeTrue();
+        harness.ViewModel.HasError.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Reload_UnreadablePreferences_ShowsErrorAndKeepsLaunchOff()
+    {
+        var harness = new Harness();
+        harness.Preferences.Load(Arg.Any<CancellationToken>())
+            .Returns(new Result<AppPreferences>.Fail(new SyncError("unavailable", "preferences file could not be read")));
+
+        await harness.ViewModel.ReloadAsync();
+
+        harness.ViewModel.HasError.ShouldBeTrue();
+        harness.ViewModel.ErrorMessage.ShouldBe("preferences file could not be read");
+        harness.ViewModel.LaunchAtLogin.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task ToggleLaunch_OffToOn_EnablesEntryAndPersists()
+    {
+        var harness = new Harness();
+        await harness.ViewModel.ReloadAsync();
+
+        await harness.ViewModel.ToggleLaunchAtLoginCommand.ExecuteAsync(null);
+
+        harness.Autostart.Received(1).Enable(Arg.Any<string>());
+        await harness.Preferences.Received(1).Save(
+            Arg.Is<AppPreferences>(p => p.LaunchAtLogin),
+            Arg.Any<CancellationToken>());
+        harness.ViewModel.LaunchAtLogin.ShouldBeTrue();
+        harness.ViewModel.HasError.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task ToggleLaunch_OnToOff_DisablesEntryAndPersists()
+    {
+        var harness = new Harness();
+        harness.Preferences.Load(Arg.Any<CancellationToken>())
+            .Returns(new Result<AppPreferences>.Ok(new AppPreferences { LaunchAtLogin = true }));
+        await harness.ViewModel.ReloadAsync();
+
+        await harness.ViewModel.ToggleLaunchAtLoginCommand.ExecuteAsync(null);
+
+        harness.Autostart.Received(1).Disable();
+        await harness.Preferences.Received(1).Save(
+            Arg.Is<AppPreferences>(p => !p.LaunchAtLogin),
+            Arg.Any<CancellationToken>());
+        harness.ViewModel.LaunchAtLogin.ShouldBeFalse();
+        harness.ViewModel.HasError.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task ToggleLaunch_EnableFails_ShowsErrorAndLeavesPreferenceUntouched()
+    {
+        var harness = new Harness();
+        await harness.ViewModel.ReloadAsync();
+        harness.Autostart.Enable(Arg.Any<string>())
+            .Returns(new Result<Unit>.Fail(new SyncError("unavailable", "autostart entry could not be written")));
+
+        await harness.ViewModel.ToggleLaunchAtLoginCommand.ExecuteAsync(null);
+
+        harness.ViewModel.HasError.ShouldBeTrue();
+        harness.ViewModel.ErrorMessage.ShouldBe("autostart entry could not be written");
+        harness.ViewModel.LaunchAtLogin.ShouldBeFalse();
+        await harness.Preferences.DidNotReceive().Save(Arg.Any<AppPreferences>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ToggleLaunch_SaveFails_ShowsErrorAndKeepsToggleOff()
+    {
+        var harness = new Harness();
+        await harness.ViewModel.ReloadAsync();
+        harness.Preferences.Save(Arg.Any<AppPreferences>(), Arg.Any<CancellationToken>())
+            .Returns(new Result<AppPreferences>.Fail(new SyncError("unavailable", "preferences file could not be written")));
+
+        await harness.ViewModel.ToggleLaunchAtLoginCommand.ExecuteAsync(null);
+
+        harness.ViewModel.HasError.ShouldBeTrue();
+        harness.ViewModel.ErrorMessage.ShouldBe("preferences file could not be written");
+        harness.ViewModel.LaunchAtLogin.ShouldBeFalse();
+        harness.Autostart.Received(1).Enable(Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task ToggleLaunch_RoundTrip_SyncsDesktopEntryWithPreferenceFile()
+    {
+        var dir = TempDir.Create();
+        try
+        {
+            var manager = new XdgDesktopAutostartManager(dir);
+            var store = new JsonAppPreferencesStore(dir);
+            var viewModel = new SettingsViewModel(
+                Substitute.For<ISyncConfigStore>(),
+                Substitute.For<ICredentialStore>(),
+                store,
+                manager);
+
+            await viewModel.ToggleLaunchAtLoginCommand.ExecuteAsync(null);
+
+            File.Exists(manager.FilePath).ShouldBeTrue();
+            var enabled = await store.Load(CancellationToken.None);
+            enabled.ShouldBeOfType<Result<AppPreferences>.Ok>().Value.LaunchAtLogin.ShouldBeTrue();
+
+            await viewModel.ToggleLaunchAtLoginCommand.ExecuteAsync(null);
+
+            File.Exists(manager.FilePath).ShouldBeFalse();
+            var disabled = await store.Load(CancellationToken.None);
+            disabled.ShouldBeOfType<Result<AppPreferences>.Ok>().Value.LaunchAtLogin.ShouldBeFalse();
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
     public void RunWizardCommand_RaisesRequest()
     {
         var harness = new Harness();
@@ -142,6 +268,10 @@ public class SettingsViewModelTests
 
         public ICredentialStore Credentials { get; } = Substitute.For<ICredentialStore>();
 
+        public IAppPreferencesStore Preferences { get; } = Substitute.For<IAppPreferencesStore>();
+
+        public IAutostartManager Autostart { get; } = Substitute.For<IAutostartManager>();
+
         public SettingsViewModel ViewModel { get; }
 
         public Harness()
@@ -150,7 +280,13 @@ public class SettingsViewModelTests
                 .Returns(new Result<SyncConfig>.Ok(Config));
             Credentials.Read(Arg.Any<CancellationToken>())
                 .Returns(new Result<PersonalAccessToken>.Fail(new SyncError("token_missing", "no token stored")));
-            ViewModel = new SettingsViewModel(ConfigStore, Credentials);
+            Preferences.Load(Arg.Any<CancellationToken>())
+                .Returns(new Result<AppPreferences>.Ok(new AppPreferences()));
+            Preferences.Save(Arg.Any<AppPreferences>(), Arg.Any<CancellationToken>())
+                .Returns(call => new Result<AppPreferences>.Ok(call.ArgAt<AppPreferences>(0)));
+            Autostart.Enable(Arg.Any<string>()).Returns(new Result<Unit>.Ok(Unit.Value));
+            Autostart.Disable().Returns(new Result<Unit>.Ok(Unit.Value));
+            ViewModel = new SettingsViewModel(ConfigStore, Credentials, Preferences, Autostart);
         }
     }
 }

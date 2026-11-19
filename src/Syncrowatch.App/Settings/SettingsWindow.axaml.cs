@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Microsoft.Extensions.DependencyInjection;
+using Syncrowatch.Core.Autostart;
 using Syncrowatch.Core.Config;
 
 namespace Syncrowatch.App.Settings;
@@ -19,7 +20,9 @@ public partial class SettingsWindow : Window
         _router = services.GetRequiredService<ISettingsRouter>();
         _viewModel = new SettingsViewModel(
             services.GetRequiredService<ISyncConfigStore>(),
-            services.GetRequiredService<ICredentialStore>());
+            services.GetRequiredService<ICredentialStore>(),
+            services.GetRequiredService<IAppPreferencesStore>(),
+            services.GetRequiredService<IAutostartManager>());
         DataContext = _viewModel;
         Opened += (_, _) => _ = _viewModel.ReloadAsync();
         _viewModel.RunWizardRequested += OnRunWizardRequested;
