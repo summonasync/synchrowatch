@@ -58,6 +58,7 @@ public sealed class GitProcess : IGitRunner
         var startInfo = new ProcessStartInfo(_fileName)
         {
             UseShellExecute = false,
+            CreateNoWindow = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true
         };
