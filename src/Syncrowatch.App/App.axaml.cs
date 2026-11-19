@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
+using Syncrowatch.App.Autostart;
 using Syncrowatch.App.Settings;
 using Syncrowatch.App.Tray;
 using Syncrowatch.App.Wizard;
@@ -28,8 +29,10 @@ public class App : Application
             var icons = TrayIcon.GetIcons(this);
             if (icons is { Count: > 0 })
             {
-                _tray = new TrayController(CompositionRoot.Build(), icons[0], desktop);
+                var services = CompositionRoot.Build();
+                _tray = new TrayController(services, icons[0], desktop);
                 _ = _tray.LaunchAsync();
+                _ = services.GetRequiredService<AutostartStartup>().RunAsync();
             }
         }
 

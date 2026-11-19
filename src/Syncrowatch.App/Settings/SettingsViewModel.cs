@@ -4,6 +4,7 @@ using System.Windows.Input;
 using Synchro.Core;
 using Syncrowatch.App.Wizard;
 using Syncrowatch.Core;
+using Syncrowatch.Core.Autostart;
 using Syncrowatch.Core.Config;
 
 namespace Syncrowatch.App.Settings;
@@ -15,6 +16,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
 
     private readonly ISyncConfigStore _configStore;
     private readonly ICredentialStore _credentials;
+    private readonly IAppPreferencesStore _preferences;
+    private readonly IAutostartManager _autostart;
 
     private string _watchedFolder = string.Empty;
     private string _remoteUrl = string.Empty;
@@ -26,16 +29,24 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private string _identityEmail = string.Empty;
     private string _token = MissingToken;
     private string? _errorMessage;
+    private bool _launchAtLogin;
 
-    public SettingsViewModel(ISyncConfigStore configStore, ICredentialStore credentials)
+    public SettingsViewModel(
+        ISyncConfigStore configStore,
+        ICredentialStore credentials,
+        IAppPreferencesStore preferences,
+        IAutostartManager autostart)
     {
         _configStore = configStore;
         _credentials = credentials;
+        _preferences = preferences;
+        _autostart = autostart;
         RunWizardCommand = new AsyncCommand(() =>
         {
             RunWizardRequested?.Invoke(this, EventArgs.Empty);
             return Task.CompletedTask;
         });
+        ToggleLaunchAtLoginCommand = new AsyncCommand(() => ToggleLaunchAtLoginAsync(CancellationToken.None));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -43,6 +54,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     public event EventHandler? RunWizardRequested;
 
     public AsyncCommand RunWizardCommand { get; }
+
+    public AsyncCommand ToggleLaunchAtLoginCommand { get; }
 
     public string WatchedFolder => _watchedFolder;
 
@@ -76,6 +89,12 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
 
     public bool HasError => !string.IsNullOrWhiteSpace(_errorMessage);
 
+    public bool LaunchAtLogin
+    {
+        get => _launchAtLogin;
+        private set => SetField(ref _launchAtLogin, value);
+    }
+
     public async Task ReloadAsync(CancellationToken cancellationToken = default)
     {
         var loaded = await _configStore.Load(cancellationToken).ConfigureAwait(true);
@@ -90,6 +109,53 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         Map(ok.Value);
         var token = await _credentials.Read(cancellationToken).ConfigureAwait(true);
         SetField(ref _token, token is Result<PersonalAccessToken>.Ok ? MaskedToken : MissingToken, nameof(Token));
+        var stored = await _preferences.Load(cancellationToken).ConfigureAwait(true);
+        if (stored is Result<AppPreferences>.Fail preferenceFailure)
+        {
+            ErrorMessage = preferenceFailure.Error.Message;
+            return;
+        }
+
+        if (stored is Result<AppPreferences>.Ok saved)
+        {
+            LaunchAtLogin = saved.Value.LaunchAtLogin;
+        }
+    }
+
+    public async Task ToggleLaunchAtLoginAsync(CancellationToken cancellationToken = default)
+    {
+        ErrorMessage = null;
+        var enable = !_launchAtLogin;
+        var applied = enable ? EnableAutostart() : _autostart.Disable();
+        if (applied is not Result<Unit>.Ok)
+        {
+            ErrorMessage = applied is Result<Unit>.Fail failure
+                ? failure.Error.Message
+                : "autostart entry could not be updated";
+            Notify(nameof(LaunchAtLogin));
+            return;
+        }
+
+        var saved = await _preferences.Save(new AppPreferences { LaunchAtLogin = enable }, cancellationToken)
+            .ConfigureAwait(true);
+        if (saved is not Result<AppPreferences>.Ok)
+        {
+            ErrorMessage = saved is Result<AppPreferences>.Fail saveFailure
+                ? saveFailure.Error.Message
+                : "preference could not be saved";
+            Notify(nameof(LaunchAtLogin));
+            return;
+        }
+
+        LaunchAtLogin = enable;
+    }
+
+    private Result<Unit> EnableAutostart()
+    {
+        var exePath = Environment.ProcessPath;
+        return exePath is null
+            ? new Result<Unit>.Fail(new SyncError("unavailable", "application executable path is unavailable"))
+            : _autostart.Enable(exePath);
     }
 
     private void Map(SyncConfig config)

@@ -2,9 +2,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Synchro.Core;
 using Syncrowatch.App;
+using Syncrowatch.App.Autostart;
 using Syncrowatch.App.Notifications;
 using Syncrowatch.App.Tray;
 using Syncrowatch.Core;
+using Syncrowatch.Core.Autostart;
 using Syncrowatch.Core.Bootstrap;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.Engine;
@@ -129,6 +131,16 @@ public class CompositionRootTests
         var first = provider.GetRequiredService<TrayIconCache>();
         var second = provider.GetRequiredService<TrayIconCache>();
         first.ShouldBeSameAs(second);
+    }
+
+    [Fact]
+    public void Build_RegistersPreferencesAndAutostartWiring()
+    {
+        var provider = CompositionRoot.Build();
+
+        provider.GetService<IAppPreferencesStore>().ShouldNotBeNull();
+        provider.GetService<IAutostartManager>().ShouldNotBeNull();
+        provider.GetService<AutostartStartup>().ShouldNotBeNull();
     }
 
     private static SyncConfig SampleConfig(string remoteUrl) => new()

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Syncrowatch.App.Autostart;
 using Syncrowatch.App.Files;
 using Syncrowatch.App.History;
 using Syncrowatch.App.Notifications;
@@ -6,6 +7,7 @@ using Syncrowatch.App.Settings;
 using Syncrowatch.App.Tray;
 using Syncrowatch.App.Wizard;
 using Syncrowatch.Core;
+using Syncrowatch.Core.Autostart;
 using Syncrowatch.Core.Bootstrap;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.Engine;
@@ -25,6 +27,12 @@ public static class CompositionRoot
         var services = new ServiceCollection();
         services.AddSingleton<ISyncConfigStore>(new JsonSyncConfigStore(dataDirectory));
         services.AddSingleton<ICredentialStore>(credentials);
+        services.AddSingleton<IAppPreferencesStore>(new JsonAppPreferencesStore(dataDirectory));
+        services.AddSingleton<IAutostartManager>(AutostartManager.ForCurrentPlatform());
+        services.AddSingleton(sp => new AutostartStartup(
+            sp.GetRequiredService<IAppPreferencesStore>(),
+            sp.GetRequiredService<IAutostartManager>(),
+            () => Environment.ProcessPath));
         services.AddSingleton<Func<SyncConfig, IRemoteRepository>>(config =>
             new GitHubRepository(config, credentials, new GitProcess()));
         services.AddSingleton<ILocalGit>(new GitLocal(new GitProcess()));
