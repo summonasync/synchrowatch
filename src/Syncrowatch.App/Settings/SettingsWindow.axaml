@@ -6,7 +6,8 @@
         x:CompileBindings="True"
         Title="Syncrowatch settings"
         Width="560" Height="460"
-        CanResize="False"
+        MinWidth="480" MinHeight="360"
+        CanResize="True"
         WindowStartupLocation="CenterScreen">
   <Window.Resources>
     <FontFamily x:Key="MonoFont">JetBrains Mono NL, Consolas, DejaVu Sans Mono, monospace</FontFamily>
@@ -85,7 +86,8 @@
     </Style>
   </Window.Styles>
 
-  <StackPanel Margin="26,20,26,18" Spacing="4">
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="26,20,26,18" Spacing="4">
     <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center" Margin="0,0,0,2">
       <Image Source="avares://syncrowatch/Assets/sigils/syncrowatch-bare.png" Height="22" />
       <TextBlock Text="Settings" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -164,5 +166,6 @@
 
     <Button Classes="primary" Content="Run wizard…" Command="{Binding RunWizardCommand}"
             HorizontalAlignment="Right" Margin="0,12,0,0" />
-  </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
 </Window>
