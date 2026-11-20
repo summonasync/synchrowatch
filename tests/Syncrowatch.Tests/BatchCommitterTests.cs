@@ -1,3 +1,4 @@
+using NSubstitute;
 using Shouldly;
 using Synchro.Core;
 using Syncrowatch.Core.Config;
@@ -149,6 +150,50 @@ public class BatchCommitterTests
 
         outcome.ShouldBeOfType<Result<CommitOutcome>.Fail>().Error.Code.ShouldBe("git_error");
         runner.Invocations.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task CommitBatch_AllPathsSkippedByStage_ResolvesAsNoOpWithoutCommitCall()
+    {
+        var local = Substitute.For<ILocalGit>();
+        local.StagePaths(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(new Result<StageOutcome>.Ok(new StageOutcome(["ghost.txt"])));
+        var committer = new BatchCommitter(Config(), local);
+
+        var outcome = await committer.CommitBatch(["ghost.txt"], CancellationToken.None);
+
+        var committed = outcome.ShouldBeOfType<Result<CommitOutcome>.Ok>().Value;
+        committed.CommitSha.ShouldBeNull();
+        committed.SkippedPaths.ShouldBe(["ghost.txt"]);
+        await local.DidNotReceive().CommitPaths(
+            Arg.Any<string>(), Arg.Any<CommitIdentity>(), Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CommitBatch_AllPathsVanishedBeforeCommit_IsTypedNoOpWithoutLanding()
+    {
+        var repo = TempDir.Create();
+        GitCli.Ensure(repo, "init", "-b", "main", ".");
+        GitCli.ConfigureIdentity(repo);
+        File.WriteAllText(Path.Combine(repo, "seed.txt"), "seed");
+        GitCli.CommitAll(repo, "seed");
+        var config = new SyncConfig
+        {
+            WatchedFolder = repo,
+            RemoteUrl = "https://github.com/acme/private.git",
+            Branch = "main",
+            Identity = new CommitIdentity { Name = "Syncrowatch", Email = "sync@local" }
+        };
+
+        var outcome = await new BatchCommitter(config, new GitLocal(new GitProcess()))
+            .CommitBatch(["ghost.txt"], CancellationToken.None);
+
+        var committed = outcome.ShouldBeOfType<Result<CommitOutcome>.Ok>().Value;
+        committed.CommitSha.ShouldBeNull();
+        committed.SkippedPaths.ShouldBe(["ghost.txt"]);
+        GitCli.Run(repo, "rev-list", "--count", "HEAD").Output.Trim().ShouldBe("1");
+        GitCli.Run(repo, "status", "--porcelain").Output.Trim().ShouldBeEmpty();
     }
 
     [Fact]
