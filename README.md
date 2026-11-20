@@ -13,7 +13,7 @@
 ```
 
 **Synchro — high-level code sync without git transport.**  
-*The sealed package that carries features between machines no repo ever shared.*
+*Sealed packages carried by hand, or direct repo-to-repo sync between machines no repo ever shared.*
 
 `await SummonAsync();` — part of the summoner's kit  
 overmind · grimoire · squeezr · **▸ synchro** · mindlash studio
@@ -49,6 +49,35 @@ receiving side.
    semantically similar ones to the human: drop, replace, or merge. Merging
    drafts through `git merge-file`; the agent resolves what remains.
 
+## Two transports
+
+**Hand-carry** — `synchro pack` seals a `.synchr` file, a human moves it, `synchro
+apply` lands it. For machines that share nothing at all.
+
+**Direct master-slave** — two repos of one project reachable by path (same machine or
+a mounted share). One side is the master: it holds the encrypted store, the full sync
+history and the per-slave ledger; the slave is a stateless folder. `synchro sync`
+exchanges feature deltas bidirectionally; they land uncommitted on a remembered
+`feature-sync` branch on the receiving side. No `.synchr` file is produced on this
+path — the master's encrypted store is the only artifact Synchro writes here, and the
+tool never commits in either repo (one consented exception: a plain folder joining as
+a slave gets `git init` plus a single neutral bootstrap commit).
+
+```bash
+# in the master repo — once
+synchro init
+synchro add slave ../client-repo
+
+# every sync — conflicts ask, Enter accepts master-wins; --yes skips the ask
+synchro sync [slave] [--yes]
+synchro status [slave]                # both inboxes, ledger hint, last operation
+synchro log [slave]                   # sync history
+synchro rollback [slave] [--master]   # discard an inbox — tree returns to the base branch
+```
+
+The human commits the inbox branches when the landed work looks right. A UI shell over
+this flow is on the roadmap.
+
 ## Two modes
 
 | Mode | When | Alignment |
@@ -64,7 +93,8 @@ Both modes run on the same encrypted store and the same package format.
   from random data — no archive magic, no headers, no signatures;
 - no metadata identifies the sending machine: no hostname, no user, no paths;
 - the store hides from the client's `git status` without touching `.gitignore`;
-- the tool and the agents never write to the client's git — read-only, always.
+- the tool and the agents never commit in a peer's git — the only exception is the
+  consented bootstrap commit when a plain folder joins as a slave.
 
 ## Status
 
