@@ -34,6 +34,60 @@ public class XdgDesktopAutostartManagerTests
     }
 
     [Fact]
+    public void Enable_CleanPath_KeepsExactEntryBytes()
+    {
+        var dir = TempDir.Create();
+        try
+        {
+            var manager = new XdgDesktopAutostartManager(dir);
+
+            manager.Enable("/opt/syncrowatch/Syncrowatch.App");
+
+            File.ReadAllText(manager.FilePath).ShouldBe(
+                "[Desktop Entry]\nType=Application\nExec=/opt/syncrowatch/Syncrowatch.App\nName=Syncrowatch\nX-GNOME-Autostart-enabled=true");
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public void Enable_PathWithSpaces_WritesQuotedExecLine()
+    {
+        var dir = TempDir.Create();
+        try
+        {
+            var manager = new XdgDesktopAutostartManager(dir);
+
+            manager.Enable("/opt/my apps/Syncrowatch.App");
+
+            File.ReadAllText(manager.FilePath).ShouldContain("Exec=\"/opt/my apps/Syncrowatch.App\"");
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public void BuildExecValue_CleanPath_StaysUnquoted()
+    {
+        XdgDesktopAutostartManager.BuildExecValue("/opt/syncrowatch/Syncrowatch.App")
+            .ShouldBe("/opt/syncrowatch/Syncrowatch.App");
+    }
+
+    [Theory]
+    [InlineData("/opt/my apps/Syncrowatch.App", "\"/opt/my apps/Syncrowatch.App\"")]
+    [InlineData("/opt/tab\tthere/app", "\"/opt/tab\tthere/app\"")]
+    [InlineData("/opt/\"quoted\"/app", "\"/opt/\\\"quoted\\\"/app\"")]
+    [InlineData("/opt/back\\slash/app", "\"/opt/back\\\\slash/app\"")]
+    public void BuildExecValue_SpecialCharacterPaths_AreQuotedAndEscaped(string exePath, string expected)
+    {
+        XdgDesktopAutostartManager.BuildExecValue(exePath).ShouldBe(expected);
+    }
+
+    [Fact]
     public void Disable_DeletesTheEntryFile()
     {
         var dir = TempDir.Create();
