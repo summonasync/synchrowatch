@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using Synchro.Core;
 using Syncrowatch.Core.Config;
 
@@ -6,6 +7,8 @@ namespace Syncrowatch.Core.Transport;
 
 public sealed class GitLocal(IGitRunner runner) : ILocalGit
 {
+    private const string RenameMarker = " -> ";
+
     public Task<Result<Unit>> Init(string folder, string branch, CommitIdentity identity, CancellationToken cancellationToken) =>
         TransportResult.Capture<Unit>(async () =>
         {
@@ -192,6 +195,15 @@ public sealed class GitLocal(IGitRunner runner) : ILocalGit
             var status = await RunAsync(folder, ["status", "--porcelain"], cancellationToken).ConfigureAwait(false);
             GitFailure.EnsureSuccess(status, "read working tree state");
             return new Result<bool>.Ok(status.StandardOutput.Trim().Length == 0);
+        });
+
+    public Task<Result<IReadOnlyList<string>>> DirtyPaths(string folder, CancellationToken cancellationToken) =>
+        TransportResult.Capture<IReadOnlyList<string>>(async () =>
+        {
+            GuardFolder(folder);
+            var status = await RunAsync(folder, ["status", "--porcelain"], cancellationToken).ConfigureAwait(false);
+            GitFailure.EnsureSuccess(status, "read dirty paths");
+            return new Result<IReadOnlyList<string>>.Ok(ParseDirty(status.StandardOutput));
         });
 
     public Task<Result<BlobContent>> ReadBlob(string folder, string revision, string relativePath, CancellationToken cancellationToken) =>
@@ -412,6 +424,104 @@ public sealed class GitLocal(IGitRunner runner) : ILocalGit
 
         return entries;
     }
+
+    internal static IReadOnlyList<string> ParseDirty(string output)
+    {
+        var paths = new List<string>();
+        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var record = line.TrimEnd('\r');
+            if (record.Length < 4)
+            {
+                continue;
+            }
+
+            var body = record[3..];
+            var arrow = FindRenameArrow(body);
+            if (arrow < 0)
+            {
+                paths.Add(DecodeEntry(body));
+                continue;
+            }
+
+            paths.Add(DecodeEntry(body[..arrow]));
+            paths.Add(DecodeEntry(body[(arrow + RenameMarker.Length)..]));
+        }
+
+        return paths;
+    }
+
+    private static int FindRenameArrow(string body)
+    {
+        if (!body.StartsWith('"'))
+        {
+            return body.IndexOf(RenameMarker, StringComparison.Ordinal);
+        }
+
+        var index = 1;
+        while (index < body.Length)
+        {
+            if (body[index] == '\\')
+            {
+                index += 2;
+                continue;
+            }
+
+            if (body[index] == '"')
+            {
+                return body[(index + 1)..].StartsWith(RenameMarker, StringComparison.Ordinal)
+                    ? index + 1
+                    : -1;
+            }
+
+            index++;
+        }
+
+        return -1;
+    }
+
+    private static string DecodeEntry(string entry) =>
+        entry.Length > 1 && entry.StartsWith('"') && entry.EndsWith('"')
+            ? DecodeQuoted(entry[1..^1])
+            : entry;
+
+    private static string DecodeQuoted(string inner)
+    {
+        var bytes = new List<byte>(inner.Length);
+        for (var index = 0; index < inner.Length; index++)
+        {
+            if (inner[index] == '\\' && index + 1 < inner.Length)
+            {
+                var next = inner[index + 1];
+                if (next is '"' or '\\')
+                {
+                    bytes.Add((byte)next);
+                    index++;
+                    continue;
+                }
+
+                if (IsOctalRun(inner, index + 1))
+                {
+                    bytes.Add((byte)(
+                        (inner[index + 1] - '0') * 64
+                        + (inner[index + 2] - '0') * 8
+                        + (inner[index + 3] - '0')));
+                    index += 3;
+                    continue;
+                }
+            }
+
+            bytes.Add((byte)inner[index]);
+        }
+
+        return Encoding.UTF8.GetString([.. bytes]);
+    }
+
+    private static bool IsOctalRun(string text, int start) =>
+        start + 2 < text.Length
+        && text[start] is >= '0' and <= '7'
+        && text[start + 1] is >= '0' and <= '7'
+        && text[start + 2] is >= '0' and <= '7';
 
     private static IReadOnlyList<string> SplitNul(string output) =>
         output.Split('\0', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

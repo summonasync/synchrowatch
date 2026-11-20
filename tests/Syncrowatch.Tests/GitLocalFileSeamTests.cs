@@ -23,6 +23,28 @@ public class GitLocalFileSeamTests
         files.ShouldBe(listed);
     }
 
+    [Fact]
+    public async Task DirtyPaths_ReadsLiveWorktreeDirtIncludingRenameSides()
+    {
+        using var repo = new LocalRepo();
+        repo.Write("plain.txt", "one", "seed plain");
+        repo.Write("mover/old.txt", "two", "seed mover");
+        File.WriteAllText(Path.Combine(repo.Work, "plain.txt"), "one edited");
+        File.WriteAllText(Path.Combine(repo.Work, "fresh untracked.txt"), "three");
+        File.WriteAllText(Path.Combine(repo.Work, "skip.tmp"), "unfiltered dirt");
+        GitCli.Ensure(repo.Work, "mv", "mover/old.txt", "mover/renamed.txt");
+
+        var outcome = await repo.Local.DirtyPaths(repo.Work, CancellationToken.None);
+
+        var dirty = outcome.ShouldBeOfType<Result<IReadOnlyList<string>>.Ok>().Value;
+        dirty.Count.ShouldBe(5);
+        dirty.ShouldContain("plain.txt");
+        dirty.ShouldContain("fresh untracked.txt");
+        dirty.ShouldContain("mover/old.txt");
+        dirty.ShouldContain("mover/renamed.txt");
+        dirty.ShouldContain("skip.tmp");
+    }
+
     [Theory]
     [InlineData("folder with spaces/notes here.txt")]
     [InlineData("юникод-папка/отчёт.txt")]

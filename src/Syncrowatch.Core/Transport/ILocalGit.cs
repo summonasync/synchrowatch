@@ -28,6 +28,8 @@ public interface ILocalGit
 
     Task<Result<bool>> IsWorkingTreeEmpty(string folder, CancellationToken cancellationToken);
 
+    Task<Result<IReadOnlyList<string>>> DirtyPaths(string folder, CancellationToken cancellationToken);
+
     Task<Result<BlobContent>> ReadBlob(string folder, string revision, string relativePath, CancellationToken cancellationToken);
 
     Task<Result<BlobContent>> ReadBlobBySha(string folder, string objectSha, CancellationToken cancellationToken);
