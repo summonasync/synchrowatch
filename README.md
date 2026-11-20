@@ -145,6 +145,11 @@ Both modes run on the same encrypted store and the same package format.
   to the base branch.
 - `synchro status [<slave>]`, `synchro log [<slave>]` — per-slave config,
   inbox state and sync history for the direct path.
+- `synchro install` — register the running binary as the `synchro` command:
+  per-user copy, PATH registration, upgrade report on re-run (`--path-fix`
+  for a missing Linux PATH entry, `--force` to re-point a foreign name).
+- `synchro uninstall` — remove the installed binary, the command name and
+  its PATH entries; stores and settings stay untouched.
 
 ### Quick start
 
@@ -271,9 +276,34 @@ self-contained single-file executables: no .NET runtime, no installer.
 - **syncrowatch** — latest published binaries on **v0.1.8**: `syncrowatch`
   (linux-x64) and `syncrowatch.exe` (win-x64), shipped with a checksum
   manifest.
-- **synchro** — latest published CLI binaries on **v0.1.2** (`synchro`,
-  `synchro.exe`). The CLI dropped out of the release train after v0.1.2;
-  for the current head, build from source.
+- **synchro** — download the release for your OS (`synchro` for linux-x64,
+  `synchro.exe` for win-x64) and let the binary install itself.
+
+Install the synchro CLI (Linux):
+
+```bash
+chmod +x synchro
+./synchro install        # add --path-fix when ~/.local/bin is not on PATH
+```
+
+Windows (PowerShell): `.\synchro.exe install`.
+
+`synchro install` copies the binary into the per-user install location and
+registers the `synchro` command on PATH — per-user, no admin, no network:
+
+- Linux: a versioned copy under `~/.local/share/synchro/` behind a
+  `~/.local/bin/synchro` symlink. When `~/.local/bin` is missing from
+  PATH, rerun with `--path-fix` — a marked PATH block lands in
+  `~/.profile`. Open a new shell (or re-source `~/.profile`) and
+  `synchro` resolves.
+- Windows: `%LOCALAPPDATA%\Programs\synchro\synchro.exe`, the user PATH
+  updated in the registry. Open a new terminal and `synchro` resolves.
+- Upgrade is the same command: run `install` from the newer binary and the
+  report shows `previous -> new` versions.
+- `synchro install --force` re-points an existing name the install did not
+  create — with a warning naming where it pointed.
+- `synchro uninstall` removes the binary, the command name and its PATH
+  entries. `.synchro` stores and syncrowatch settings are never touched.
 
 Verify the checksum after download — Linux:
 
