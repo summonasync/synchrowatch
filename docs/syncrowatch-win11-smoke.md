@@ -13,7 +13,9 @@ Run after every release build from Ubuntu. Total time: about 30 minutes.
 
 ## 1. Zero-install launch
 
-1. Copy `syncrowatch.exe` to a fresh folder, run it by double-click.
+1. Copy `syncrowatch.exe` to a fresh folder, run `syncrowatch.exe --version` from a terminal.
+   Expected: prints `syncrowatch <version>` matching the release tag, exits immediately; no GUI window.
+2. Run it by double-click.
    Expected: tray icon appears; no runtime, no installer, no missing-DLL errors.
 
 ## 2. Wizard E2E with a real PAT (spec AC: setup wizard)
