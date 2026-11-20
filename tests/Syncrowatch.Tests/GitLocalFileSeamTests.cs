@@ -45,6 +45,25 @@ public class GitLocalFileSeamTests
         dirty.ShouldContain("skip.tmp");
     }
 
+    [Fact]
+    public async Task StagePaths_VanishedPathspecsSkipWhileTrackedDeletionStillStages()
+    {
+        using var repo = new LocalRepo();
+        repo.Write("doomed.txt", "delete me", "seed doomed");
+        File.Delete(Path.Combine(repo.Work, "doomed.txt"));
+
+        var mixed = await repo.Local.StagePaths(
+            repo.Work, ["ghost.txt", "doomed.txt", "also-ghost.txt"], CancellationToken.None);
+        mixed.ShouldBeOfType<Result<StageOutcome>.Ok>().Value.SkippedPaths
+            .ShouldBe(["ghost.txt", "doomed.txt", "also-ghost.txt"]);
+        GitCli.Run(repo.Work, "diff", "--cached", "--name-status").Output.Trim().ShouldBeEmpty();
+
+        var deletion = await repo.Local.StagePaths(repo.Work, ["doomed.txt"], CancellationToken.None);
+        deletion.ShouldBeOfType<Result<StageOutcome>.Ok>().Value.SkippedPaths.ShouldBeEmpty();
+        GitCli.Run(repo.Work, "diff", "--cached", "--name-status").Output.Trim()
+            .ShouldBe("D\tdoomed.txt");
+    }
+
     [Theory]
     [InlineData("folder with spaces/notes here.txt")]
     [InlineData("юникод-папка/отчёт.txt")]

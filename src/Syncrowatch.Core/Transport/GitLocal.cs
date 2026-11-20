@@ -106,8 +106,14 @@ public sealed class GitLocal(IGitRunner runner) : ILocalGit
             }
 
             using var pathspec = PathspecFile.Create(accepted);
-            GitFailure.EnsureSuccess(await RunAsync(folder,
-                ["add", "-A", $"--pathspec-from-file={pathspec.FilePath}", "--pathspec-file-nul"], cancellationToken).ConfigureAwait(false), "stage");
+            var staged = await RunAsync(folder,
+                ["add", "-A", $"--pathspec-from-file={pathspec.FilePath}", "--pathspec-file-nul"], cancellationToken).ConfigureAwait(false);
+            if (!staged.Succeeded && MatchesNoKnownFile(staged))
+            {
+                return new Result<StageOutcome>.Ok(new StageOutcome([.. skipped, .. accepted]));
+            }
+
+            GitFailure.EnsureSuccess(staged, "stage");
             return new Result<StageOutcome>.Ok(new StageOutcome(skipped));
         });
 

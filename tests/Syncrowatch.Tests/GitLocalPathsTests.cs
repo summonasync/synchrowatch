@@ -101,6 +101,19 @@ public class GitLocalPathsTests
     }
 
     [Fact]
+    public async Task Stage_NoKnownFileMatch_SkipsEveryAcceptedPath()
+    {
+        var runner = new FakeGitRunner(_ => new GitCommandResult(
+            128, string.Empty, "fatal: pathspec 'a.txt' did not match any files"));
+        var local = new GitLocal(runner);
+
+        var outcome = await local.StagePaths(TempDir.Create(), ["a.txt", "sub/b.txt"], CancellationToken.None);
+
+        outcome.ShouldBeOfType<Result<StageOutcome>.Ok>().Value.SkippedPaths.ShouldBe(["a.txt", "sub/b.txt"]);
+        runner.Invocations.ShouldHaveSingleItem();
+    }
+
+    [Fact]
     public async Task Commit_SendsIdentityMessageAndPathspec()
     {
         var runner = new FakeGitRunner(invocation => invocation.Arguments.Contains("rev-parse")
