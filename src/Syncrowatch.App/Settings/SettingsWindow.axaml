@@ -1,0 +1,171 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:Syncrowatch.App.Settings"
+        x:Class="Syncrowatch.App.Settings.SettingsWindow"
+        x:DataType="vm:SettingsViewModel"
+        x:CompileBindings="True"
+        Title="Syncrowatch settings"
+        Width="560" Height="460"
+        MinWidth="480" MinHeight="360"
+        CanResize="True"
+        WindowStartupLocation="CenterScreen">
+  <Window.Resources>
+    <FontFamily x:Key="MonoFont">JetBrains Mono NL, Consolas, DejaVu Sans Mono, monospace</FontFamily>
+  </Window.Resources>
+
+  <Window.Styles>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{DynamicResource BrandEmberBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource BrandInkBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BrandEmberBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="16,6" />
+      <Setter Property="MinWidth" Value="104" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border x:Name="actionChrome"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  Padding="{TemplateBinding Padding}">
+            <ContentPresenter Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              TextBlock.Foreground="{TemplateBinding Foreground}"
+                              TextBlock.FontWeight="{TemplateBinding FontWeight}" />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ Border#actionChrome">
+      <Setter Property="Background" Value="{DynamicResource BrandEmberHoverBrush}" />
+    </Style>
+    <Style Selector="Button.primary:pressed /template/ Border#actionChrome">
+      <Setter Property="Background" Value="{DynamicResource BrandEmberPressBrush}" />
+    </Style>
+    <Style Selector="Button.primary:disabled /template/ Border#actionChrome">
+      <Setter Property="Opacity" Value="0.4" />
+    </Style>
+
+    <Style Selector="Border.settingRow">
+      <Setter Property="BorderBrush" Value="{DynamicResource BrandLineBrush}" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="Padding" Value="0,9" />
+    </Style>
+    <Style Selector="TextBlock.settingLabel">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource BrandAshBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.settingValue">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource BrandParchmentBrush}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.settingValue.muted">
+      <Setter Property="Foreground" Value="{DynamicResource BrandAshBrush}" />
+    </Style>
+    <Style Selector="TextBlock.settingHint">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource BrandAshBrush}" />
+    </Style>
+    <Style Selector="CheckBox.prefToggle">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource BrandParchmentBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="CheckBox.prefToggle:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Foreground" Value="{DynamicResource BrandEmberHoverBrush}" />
+    </Style>
+  </Window.Styles>
+
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="26,20,26,18" Spacing="4">
+    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center" Margin="0,0,0,2">
+      <Image Source="avares://syncrowatch/Assets/sigils/syncrowatch-bare.png" Height="22" />
+      <TextBlock Text="Settings" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+    </StackPanel>
+    <TextBlock Classes="settingHint" Text="await Syncrowatch();" Margin="0,0,0,10" />
+
+    <Border Classes="settingRow">
+      <Grid ColumnDefinitions="160,*">
+        <TextBlock Classes="settingLabel" Text="watched folder" />
+        <TextBlock Classes="settingValue" Grid.Column="1" Text="{Binding WatchedFolder}" />
+      </Grid>
+    </Border>
+    <Border Classes="settingRow">
+      <Grid ColumnDefinitions="160,*">
+        <TextBlock Classes="settingLabel" Text="repository" />
+        <TextBlock Classes="settingValue" Grid.Column="1" Text="{Binding RemoteUrl}" />
+      </Grid>
+    </Border>
+    <Border Classes="settingRow">
+      <Grid ColumnDefinitions="160,*">
+        <TextBlock Classes="settingLabel" Text="branch" />
+        <TextBlock Classes="settingValue" Grid.Column="1" Text="{Binding Branch}" />
+      </Grid>
+    </Border>
+    <Border Classes="settingRow">
+      <Grid ColumnDefinitions="160,*">
+        <TextBlock Classes="settingLabel" Text="sync mode" />
+        <TextBlock Classes="settingValue" Grid.Column="1" Text="{Binding RunMode}" />
+      </Grid>
+    </Border>
+    <Border Classes="settingRow">
+      <Grid ColumnDefinitions="160,*">
+        <TextBlock Classes="settingLabel" Text="debounce" />
+        <TextBlock Classes="settingValue" Grid.Column="1" Text="{Binding Debounce}" />
+      </Grid>
+    </Border>
+    <Border Classes="settingRow">
+      <Grid ColumnDefinitions="160,*">
+        <TextBlock Classes="settingLabel" Text="poll interval" />
+        <TextBlock Classes="settingValue" Grid.Column="1" Text="{Binding PollInterval}" />
+      </Grid>
+    </Border>
+    <Border Classes="settingRow">
+      <Grid ColumnDefinitions="160,*">
+        <TextBlock Classes="settingLabel" Text="commit identity" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+          <TextBlock Classes="settingValue" Text="{Binding IdentityName}" />
+          <TextBlock Classes="settingValue muted" Text="{Binding IdentityEmail}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+    <Border Classes="settingRow" BorderThickness="0">
+      <Grid ColumnDefinitions="160,*">
+        <TextBlock Classes="settingLabel" Text="access token" />
+        <TextBlock Classes="settingValue" Grid.Column="1" Text="{Binding Token}" />
+      </Grid>
+    </Border>
+
+    <TextBlock Classes="settingHint" Text="Preferences" Margin="0,14,0,2" />
+    <Border Classes="settingRow" BorderThickness="0">
+      <Grid ColumnDefinitions="160,*">
+        <TextBlock Classes="settingLabel" Text="launch at login" />
+        <CheckBox Classes="prefToggle" Grid.Column="1"
+                  Content="start Syncrowatch when I log in"
+                  IsChecked="{Binding LaunchAtLogin, Mode=OneWay}"
+                  Command="{Binding ToggleLaunchAtLoginCommand}" />
+      </Grid>
+    </Border>
+
+    <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding HasError}" Margin="0,4,0,0">
+      <TextBlock Text=";" FontFamily="{StaticResource MonoFont}" FontSize="19" FontWeight="SemiBold"
+                 Foreground="{DynamicResource BrandEmberBrush}" VerticalAlignment="Center" />
+      <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" FontSize="12"
+                 Foreground="{DynamicResource BrandParchmentBrush}" VerticalAlignment="Center" />
+    </StackPanel>
+
+    <Button Classes="primary" Content="Run wizard…" Command="{Binding RunWizardCommand}"
+            HorizontalAlignment="Right" Margin="0,12,0,0" />
+    </StackPanel>
+  </ScrollViewer>
+</Window>

@@ -1,0 +1,57 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Syncrowatch.App.App"
+             RequestedThemeVariant="Dark">
+  <Application.Styles>
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <!-- Brand.axaml mapped onto the Fluent dark roles: ink #0B0D0C window, ink2 #121614
+             surfaces/inputs, parchment #E8E4D9 primary text, ash #8A9089 secondary text,
+             line #232A26 borders, ember #FF6B35 accent. -->
+        <ColorPaletteResources x:Key="Dark"
+                               Accent="#FF6B35"
+                               AltHigh="#121614"
+                               AltLow="#33121614"
+                               AltMedium="#1A201C"
+                               AltMediumHigh="#1B211D"
+                               AltMediumLow="#121614"
+                               BaseHigh="#E8E4D9"
+                               BaseLow="#1A1F1B"
+                               BaseMedium="#8A9089"
+                               BaseMediumHigh="#8A9089"
+                               BaseMediumLow="#668A9089"
+                               ChromeAltLow="#E8E4D9"
+                               ChromeBlackHigh="#0B0D0C"
+                               ChromeBlackLow="#330B0D0C"
+                               ChromeBlackMedium="#CC0B0D0C"
+                               ChromeBlackMediumLow="#660B0D0C"
+                               ChromeDisabledHigh="#1A1F1B"
+                               ChromeDisabledLow="#646963"
+                               ChromeGray="#8A9089"
+                               ChromeHigh="#232A26"
+                               ChromeLow="#161A17"
+                               ChromeMedium="#121614"
+                               ChromeMediumLow="#121614"
+                               ChromeWhite="#E8E4D9"
+                               ErrorText="#FF6B35"
+                               ListLow="#14E8E4D9"
+                               ListMedium="#29E8E4D9"
+                               RegionColor="#0B0D0C" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
+  </Application.Styles>
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://syncrowatch/Brand.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+      <StaticResource x:Key="TextControlBorderBrush" ResourceKey="BrandLineBrush" />
+      <SolidColorBrush x:Key="TextControlSelectionHighlightColor" Color="#33FF6B35" />
+    </ResourceDictionary>
+  </Application.Resources>
+  <TrayIcon.Icons>
+    <TrayIcons>
+      <TrayIcon Icon="avares://syncrowatch/Assets/syncrowatch-tray.png" ToolTipText="Syncrowatch" />
+    </TrayIcons>
+  </TrayIcon.Icons>
+</Application>
