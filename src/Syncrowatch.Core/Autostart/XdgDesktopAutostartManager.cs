@@ -48,11 +48,21 @@ public sealed class XdgDesktopAutostartManager : IAutostartManager
 
     public Result<bool> IsApplied() => new Result<bool>.Ok(File.Exists(FilePath));
 
+    public static string BuildExecValue(string exePath)
+    {
+        if (exePath.AsSpan().IndexOfAny([' ', '\t', '"', '\\']) < 0)
+        {
+            return exePath;
+        }
+
+        return $"\"{exePath.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"";
+    }
+
     private static string BuildEntryContent(string exePath) =>
         string.Join('\n',
             "[Desktop Entry]",
             "Type=Application",
-            "Exec=" + exePath,
+            "Exec=" + BuildExecValue(exePath),
             "Name=Syncrowatch",
             "X-GNOME-Autostart-enabled=true");
 }
