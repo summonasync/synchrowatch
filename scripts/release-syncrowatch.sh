@@ -30,6 +30,7 @@ dotnet publish "${PROJECT}" \
     --self-contained true \
     -p:PublishSingleFile=true \
     -p:IncludeNativeLibrariesForSelfExtract=true \
+    -p:Version="${VERSION}" \
     -o "${DIST}/linux-x64"
 
 echo "==> win-x64"
@@ -39,6 +40,7 @@ dotnet publish "${PROJECT}" \
     --self-contained true \
     -p:PublishSingleFile=true \
     -p:IncludeNativeLibrariesForSelfExtract=true \
+    -p:Version="${VERSION}" \
     -o "${DIST}/win-x64"
 
 LINUX_BIN="${DIST}/linux-x64/syncrowatch"
