@@ -300,8 +300,8 @@ registers the `synchro` command on PATH — per-user, no admin, no network:
   updated in the registry. Open a new terminal and `synchro` resolves.
 - Upgrade is the same command: run `install` from the newer binary and the
   report shows `previous -> new` versions.
-- `synchro install --force` re-points an existing `synchro` name synchro
-  did not create — with a warning naming where it pointed.
+- `synchro install --force` re-points an existing name the install did not
+  create — with a warning naming where it pointed.
 - `synchro uninstall` removes the binary, the command name and its PATH
   entries. `.synchro` stores and syncrowatch settings are never touched.
 
