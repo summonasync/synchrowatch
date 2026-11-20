@@ -13,10 +13,13 @@
 ```
 
 **Synchro — two tools, one seal.**  
-*The `synchro` CLI carries features between machines no repo ever shared,
-sealed into encrypted `.synchr` packages. The `syncrowatch` tray keeps a
-folder in step with a private GitHub repository — full git semantics, none
-of the git ceremony.*
+*The `synchro` CLI carries features between machines no repo ever shared —
+sealed `.synchr` packages carried by hand, or direct repo-to-repo sync over
+a local path. The `syncrowatch` tray keeps a folder in step with a private
+GitHub repository — full git semantics, none of the git ceremony.*
+
+`await SummonAsync();` — part of the summoner's kit  
+overmind · grimoire · squeezr · **▸ synchro** · mindlash studio
 
 ---
 
@@ -47,7 +50,9 @@ behind air gaps. The unit of sync is a **feature**, not a diff: each side
 packs its work into one encrypted, traceless `.synchr` file, a human
 carries it across, and the receiving side's AI agent applies it — silently
 when nothing overlaps, through a drop / replace / merge dialogue when it
-does.
+does. Two repos of one project that *are* reachable by path skip the
+package entirely and sync directly, master to slave — see
+[two transports](#two-transports).
 
 No shared remote. No daemon. No traces of the sending machine on the
 receiving side.
@@ -69,6 +74,35 @@ receiving side.
    semantically similar ones to the human: drop, replace, or merge. Merging
    drafts through `git merge-file`; the agent resolves what remains.
 
+### Two transports
+
+**Hand-carry** — `synchro pack` seals a `.synchr` file, a human moves it, `synchro
+apply` lands it. For machines that share nothing at all.
+
+**Direct master-slave** — two repos of one project reachable by path (same machine or
+a mounted share). One side is the master: it holds the encrypted store, the full sync
+history and the per-slave ledger; the slave is a stateless folder. `synchro sync`
+exchanges feature deltas bidirectionally; they land uncommitted on a remembered
+`feature-sync` branch on the receiving side. No `.synchr` file is produced on this
+path — the master's encrypted store is the only artifact Synchro writes here, and the
+tool never commits in either repo (one consented exception: a plain folder joining as
+a slave gets `git init` plus a single neutral bootstrap commit).
+
+```bash
+# in the master repo — once
+synchro init
+synchro add slave ../client-repo
+
+# every sync — conflicts ask, Enter accepts master-wins; --yes skips the ask
+synchro sync [slave] [--yes]
+synchro status [slave]                # both inboxes, ledger hint, last operation
+synchro log [slave]                   # sync history
+synchro rollback [slave] [--master]   # discard an inbox — tree returns to the base branch
+```
+
+The human commits the inbox branches when the landed work looks right. A UI shell over
+this flow is on the roadmap.
+
 ### Two modes
 
 | Mode | When | Alignment |
@@ -84,12 +118,16 @@ Both modes run on the same encrypted store and the same package format.
   from random data — no archive magic, no headers, no signatures;
 - no metadata identifies the sending machine: no hostname, no user, no paths;
 - the store hides from the client's `git status` without touching `.gitignore`;
-- the tool and the agents never write to the client's git — read-only, always.
+- the tool and the agents never commit in a peer's git — the only exception is the
+  consented bootstrap commit when a plain folder joins as a slave.
 
 ### Commands
 
 - `synchro init` — create the encrypted local store and run the key ritual:
   `--peer <name>` generates the channel key, `--key <hex>` adopts the peer's.
+  Bare `synchro init` declares the repo the sync **master**.
+- `synchro add slave <path>` — register a slave repo for direct sync: path
+  validation, sync-branch name, plain folders join via a consented bootstrap.
 - `synchro pack` — seal changes since the last common point; `--full` for a
   first-transfer baseline.
 - `synchro scene` — the conflict scene: inspect what overlaps, resolve
@@ -99,7 +137,13 @@ Both modes run on the same encrypted store and the same package format.
 - `synchro ui` — local web UI over the same state, port 7741 by default
   (`--port` to override).
 - `synchro apply` — *(in progress)* the receiving side of the pipeline.
-- `synchro status`, `synchro log` — placeholders, not implemented yet.
+- `synchro sync [<slave>] [--yes]` — direct bidirectional master-slave sync:
+  conflicts ask, Enter accepts master-wins; deltas land uncommitted on the
+  remembered sync branch.
+- `synchro rollback [<slave>] [--master]` — discard a sync inbox, tree back
+  to the base branch.
+- `synchro status [<slave>]`, `synchro log [<slave>]` — per-slave config,
+  inbox state and sync history for the direct path.
 
 ### Quick start
 
@@ -202,9 +246,11 @@ MVP under active development.
 - shipped: encrypted store + key ritual · git-mode pack (manifest drafts) ·
   plain-mode pack + `.synchr` sealing · conflict scene with
   drop / replace / merge · stdio MCP server (`serve`) · local web UI (`ui`) ·
-  agent skill, E2E suite, cross-platform release builds
+  agent skill, E2E suite, cross-platform release builds · direct master-slave
+  sync (`add slave`, `sync`, `rollback`, `status`, `log`) with dirty landing
+  on a remembered sync branch
 - in progress: `apply` (base protocol, drift, silent apply, conflict
-  escalation); `status` and `log` are placeholders until it lands
+  escalation)
 
 **syncrowatch (tray)**
 
