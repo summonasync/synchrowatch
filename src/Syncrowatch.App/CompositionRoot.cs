@@ -89,7 +89,8 @@ public static class CompositionRoot
             sp.GetRequiredService<Func<SyncConfig, IRemoteRepository>>()(config),
             sp.GetRequiredService<ILocalGit>(),
             sp.GetRequiredService<ISyncEventStore>(),
-            sp.GetRequiredService<ISyncEventBus>()));
+            sp.GetRequiredService<ISyncEventBus>(),
+            pendingPaths: sp.GetRequiredService<IPendingPathsSource>()));
         services.AddTransient(sp => new SetupWizardWindow(sp));
         services.AddTransient(sp => new HistoryWindow(sp));
         services.AddTransient(sp => new FilesWindow(sp));

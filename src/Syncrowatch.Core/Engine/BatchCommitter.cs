@@ -21,6 +21,11 @@ public sealed class BatchCommitter(SyncConfig config, ILocalGit local)
 
         var skipped = ((Result<StageOutcome>.Ok)staged).Value.SkippedPaths;
         var batched = relativePaths.Where(path => !skipped.Contains(path)).ToArray();
+        if (batched.Length == 0)
+        {
+            return new Result<CommitOutcome>.Ok(new CommitOutcome(skipped, null));
+        }
+
         return await local.CommitPaths(config.WatchedFolder, config.Identity, SyncMessage(batched), relativePaths, cancellationToken)
             .ConfigureAwait(false);
     }

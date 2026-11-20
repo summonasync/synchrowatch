@@ -23,6 +23,47 @@ public class GitLocalFileSeamTests
         files.ShouldBe(listed);
     }
 
+    [Fact]
+    public async Task DirtyPaths_ReadsLiveWorktreeDirtIncludingRenameSides()
+    {
+        using var repo = new LocalRepo();
+        repo.Write("plain.txt", "one", "seed plain");
+        repo.Write("mover/old.txt", "two", "seed mover");
+        File.WriteAllText(Path.Combine(repo.Work, "plain.txt"), "one edited");
+        File.WriteAllText(Path.Combine(repo.Work, "fresh untracked.txt"), "three");
+        File.WriteAllText(Path.Combine(repo.Work, "skip.tmp"), "unfiltered dirt");
+        GitCli.Ensure(repo.Work, "mv", "mover/old.txt", "mover/renamed.txt");
+
+        var outcome = await repo.Local.DirtyPaths(repo.Work, CancellationToken.None);
+
+        var dirty = outcome.ShouldBeOfType<Result<IReadOnlyList<string>>.Ok>().Value;
+        dirty.Count.ShouldBe(5);
+        dirty.ShouldContain("plain.txt");
+        dirty.ShouldContain("fresh untracked.txt");
+        dirty.ShouldContain("mover/old.txt");
+        dirty.ShouldContain("mover/renamed.txt");
+        dirty.ShouldContain("skip.tmp");
+    }
+
+    [Fact]
+    public async Task StagePaths_VanishedPathspecsSkipWhileTrackedDeletionStillStages()
+    {
+        using var repo = new LocalRepo();
+        repo.Write("doomed.txt", "delete me", "seed doomed");
+        File.Delete(Path.Combine(repo.Work, "doomed.txt"));
+
+        var mixed = await repo.Local.StagePaths(
+            repo.Work, ["ghost.txt", "doomed.txt", "also-ghost.txt"], CancellationToken.None);
+        mixed.ShouldBeOfType<Result<StageOutcome>.Ok>().Value.SkippedPaths
+            .ShouldBe(["ghost.txt", "doomed.txt", "also-ghost.txt"]);
+        GitCli.Run(repo.Work, "diff", "--cached", "--name-status").Output.Trim().ShouldBeEmpty();
+
+        var deletion = await repo.Local.StagePaths(repo.Work, ["doomed.txt"], CancellationToken.None);
+        deletion.ShouldBeOfType<Result<StageOutcome>.Ok>().Value.SkippedPaths.ShouldBeEmpty();
+        GitCli.Run(repo.Work, "diff", "--cached", "--name-status").Output.Trim()
+            .ShouldBe("D\tdoomed.txt");
+    }
+
     [Theory]
     [InlineData("folder with spaces/notes here.txt")]
     [InlineData("юникод-папка/отчёт.txt")]

@@ -20,6 +20,7 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
     private readonly ISyncEventStore _history;
     private readonly ISyncEventBus _bus;
     private readonly BatchCommitter _committer;
+    private readonly IPendingPathsSource? _pendingPaths;
     private readonly ITimer _timer;
     private readonly TimeProvider _time;
     private readonly ConcurrentQueue<string> _pending = new();
@@ -45,13 +46,15 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
         ILocalGit local,
         ISyncEventStore history,
         ISyncEventBus bus,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IPendingPathsSource? pendingPaths = null)
     {
         _config = config;
         _remote = remote;
         _local = local;
         _history = history;
         _bus = bus;
+        _pendingPaths = pendingPaths;
         _time = timeProvider ?? TimeProvider.System;
         _mode = (int)config.Mode;
         _committer = new BatchCommitter(config, local);
@@ -253,7 +256,16 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
         var treeClean = probe.Value;
         if (!treeClean && !HasPendingPush())
         {
-            return await FailCycleAsync(DirtyTree, cancellationToken).ConfigureAwait(false);
+            if (DebouncePending())
+            {
+                return new Result<SyncCycleReport>.Ok(new SyncCycleReport(started, null, null));
+            }
+
+            treeClean = await AdoptDirtyPathsAsync(cancellationToken).ConfigureAwait(false);
+            if (!treeClean)
+            {
+                return await FailCycleAsync(DirtyTree, cancellationToken).ConfigureAwait(false);
+            }
         }
 
         var pulled = await PullAsync(treeClean, cancellationToken).ConfigureAwait(false);
@@ -339,6 +351,33 @@ public sealed class SyncLoop : ISyncEngine, IDisposable
         }
 
         return new Result<SyncCycleReport>.Ok(report);
+    }
+
+    private bool DebouncePending() => _pendingPaths?.PendingPaths.Count > 0;
+
+    private async Task<bool> AdoptDirtyPathsAsync(CancellationToken cancellationToken)
+    {
+        var dirty = await _local.DirtyPaths(_config.WatchedFolder, cancellationToken).ConfigureAwait(false);
+        if (dirty is not Result<IReadOnlyList<string>>.Ok listing)
+        {
+            return false;
+        }
+
+        var rules = SyncIgnoreRules.ForFolder(_config.WatchedFolder);
+        var adoptable = listing.Value.Where(path => !rules.IsIgnored(path)).ToArray();
+        if (adoptable.Length == 0)
+        {
+            return false;
+        }
+
+        var committed = await _committer.CommitBatch(adoptable, cancellationToken).ConfigureAwait(false);
+        if (committed is not Result<CommitOutcome>.Ok)
+        {
+            return false;
+        }
+
+        var verified = await _local.IsWorkingTreeEmpty(_config.WatchedFolder, cancellationToken).ConfigureAwait(false);
+        return verified is Result<bool>.Ok clean && clean.Value;
     }
 
     private async Task<SyncError?> CommitPendingBatchAsync(CancellationToken cancellationToken)
