@@ -97,9 +97,23 @@ Run after every release build from Ubuntu. Total time: about 30 minutes.
 1. Trigger an auto-merge, a conflict and a relay package in one session.
    Expected: three toast notifications with distinct content; the history window shows commits in/out, the merge, the conflict resolution and the pending/resolved items with timestamps.
 
+## 12. Launch at login (feature 010)
+
+1. Open Settings, tick **start Syncrowatch when I log in**.
+   Expected: no error text appears; `reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v Syncrowatch` shows the exe path double-quoted.
+2. Untick the checkbox.
+   Expected: the Run value is gone (`reg query` reports it cannot find the value); no error text.
+3. Tick it again, then sign out and back in (or reboot).
+   Expected: syncrowatch starts with the session — the tray appears without a manual launch.
+4. Re-run the full setup wizard (token → repo → folder), reopen Settings.
+   Expected: the checkbox is still ticked — the wizard never resets the preference.
+5. Move `syncrowatch.exe` to a different folder and run it from the new location.
+   Expected: the startup re-assert rewrites the Run value to the new path (`reg query` confirms); after a sign-out/in the moved exe launches.
+
 ## Exit criteria
 
 - Every numbered step above ends with its expected result.
 - `git config --global --list` before/after evidence is unchanged.
 - `icacls "%APPDATA%\syncrowatch\github.pat"` grants nothing beyond the current user profile inheritance.
+- Launch-at-login steps leave the Run value matching the live exe path (or absent when unticked), and a wizard re-run preserves the flag.
 - No data loss observed in any conflict, deletion or partial-write step.

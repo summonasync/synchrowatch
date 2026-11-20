@@ -141,7 +141,9 @@ explicit scenario cards decide whose state wins.
 
 Tray → Settings opens the wizard while nothing is configured yet, and a
 read-only preview of every setting (folder, repo, branch, mode, debounce,
-poll, identity, masked token) once it is.
+poll, identity, masked token) once it is — plus one editable checkbox,
+**launch at login**, which registers a per-user autostart entry (Windows
+Run key or Linux XDG autostart) and re-asserts its path on every start.
 
 ### Three sync modes
 
@@ -169,7 +171,8 @@ poll, identity, masked token) once it is.
 ### Where your data lives
 
 Settings and state sit in a per-user application directory (`syncrowatch/`):
-`settings.json`, `history.json`, `conflicts.json`. The PAT stays on the
+`settings.json`, `preferences.json`, `history.json`, `conflicts.json`. The
+PAT stays on the
 machine too — a local credential file (`github.pat`), never inside the
 bound repository, never in remote URLs. The repository holds only what git
 holds: your files and their history.
@@ -208,7 +211,8 @@ MVP under active development.
 - shipped: six-step wizard with back navigation · three sync modes ·
   per-state tray icons · history with live conflict resolution · files
   window with per-file history and share links · detection prompt · eight
-  toast kinds · settings preview · `.synchr` relay watching
+  toast kinds · settings preview with a launch-at-login checkbox ·
+  `.synchr` relay watching
 
 ## Install
 
@@ -217,7 +221,7 @@ Prebuilt binaries live on the
 repository is private, so access is required. All binaries are
 self-contained single-file executables: no .NET runtime, no installer.
 
-- **syncrowatch** — latest published binaries on **v0.1.4**: `syncrowatch`
+- **syncrowatch** — latest published binaries on **v0.1.6**: `syncrowatch`
   (linux-x64) and `syncrowatch.exe` (win-x64), shipped with a checksum
   manifest.
 - **synchro** — latest published CLI binaries on **v0.1.2** (`synchro`,
@@ -228,7 +232,7 @@ Verify the checksum after download — Linux:
 
 ```bash
 sha256sum syncrowatch
-# compare against the linux-x64/syncrowatch line in sha256-0.1.4.txt
+# compare against the linux-x64/syncrowatch line in sha256-0.1.6.txt
 chmod +x syncrowatch && ./syncrowatch
 ```
 
@@ -236,7 +240,7 @@ Windows (PowerShell):
 
 ```powershell
 Get-FileHash .\syncrowatch.exe -Algorithm SHA256
-# compare against the win-x64/syncrowatch.exe line in sha256-0.1.4.txt
+# compare against the win-x64/syncrowatch.exe line in sha256-0.1.6.txt
 .\syncrowatch.exe
 ```
 
@@ -260,7 +264,7 @@ Release-style builds, from Ubuntu targeting both desktops:
 
 ```bash
 scripts/release.sh                    # synchro -> dist/{linux-x64,win-x64} + sha256 manifest
-scripts/release-syncrowatch.sh 0.1.5  # syncrowatch -> dist/syncrowatch-0.1.5/{linux-x64,win-x64}
+scripts/release-syncrowatch.sh 0.1.7  # syncrowatch -> dist/syncrowatch-0.1.7/{linux-x64,win-x64}
 ```
 
 ## Docs
