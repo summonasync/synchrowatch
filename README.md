@@ -100,8 +100,8 @@ synchro log [slave]                   # sync history
 synchro rollback [slave] [--master]   # discard an inbox — tree returns to the base branch
 ```
 
-The human commits the inbox branches when the landed work looks right. A UI shell over
-this flow is on the roadmap.
+The human commits the inbox branches when the landed work looks right; `synchro ui`
+covers the same flow in a localhost console.
 
 ### Two modes
 
@@ -134,8 +134,9 @@ Both modes run on the same encrypted store and the same package format.
   drop / replace / merge, commit the outcome.
 - `synchro serve` — stdio MCP server; coding agents drive status, scene and
   apply through it.
-- `synchro ui` — local web UI over the same state, port 7741 by default
-  (`--port` to override).
+- `synchro ui` — localhost web console over the same state: dashboard, sync
+  history, inboxes and live conflict scenes; free port by default (`--port`
+  to override), loopback only.
 - `synchro apply` — *(in progress)* the receiving side of the pipeline.
 - `synchro sync [<slave>] [--yes]` — direct bidirectional master-slave sync:
   conflicts ask, Enter accepts master-wins; deltas land uncommitted on the
