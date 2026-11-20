@@ -22,6 +22,11 @@ public sealed class WindowsRunKeyAutostartManager : IAutostartManager
         try
         {
             using var runKey = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true) ?? Registry.CurrentUser.CreateSubKey(RunKeyPath, writable: true);
+            if (runKey is null)
+            {
+                return new Result<Unit>.Fail(new SyncError("unavailable", "registry run key could not be opened or created"));
+            }
+
             runKey.SetValue(ValueName, BuildRunKeyData(exePath));
             return new Result<Unit>.Ok(Unit.Value);
         }
@@ -41,7 +46,12 @@ public sealed class WindowsRunKeyAutostartManager : IAutostartManager
         try
         {
             using var runKey = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
-            runKey?.DeleteValue(ValueName, throwOnMissingValue: false);
+            if (runKey is null)
+            {
+                return new Result<Unit>.Fail(new SyncError("unavailable", "registry run key could not be opened or created"));
+            }
+
+            runKey.DeleteValue(ValueName, throwOnMissingValue: false);
             return new Result<Unit>.Ok(Unit.Value);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException)
@@ -60,7 +70,12 @@ public sealed class WindowsRunKeyAutostartManager : IAutostartManager
         try
         {
             using var runKey = Registry.CurrentUser.OpenSubKey(RunKeyPath);
-            return new Result<bool>.Ok(runKey?.GetValue(ValueName) is not null);
+            if (runKey is null)
+            {
+                return new Result<bool>.Fail(new SyncError("unavailable", "registry run key could not be opened or created"));
+            }
+
+            return new Result<bool>.Ok(runKey.GetValue(ValueName) is not null);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException)
         {
