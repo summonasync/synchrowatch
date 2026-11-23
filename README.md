@@ -17,7 +17,7 @@ repository.**
 surface: the person sees toasts, not commands.*
 
 `await SummonAsync();` — part of the summoner's kit  
-overmind · grimoire · squeezr · **▸ syncrowatch** · summonasync studio
+overmind · grimoire · squeezr · synchro · **▸ syncrowatch** · summonasync studio
 
 ---
 
@@ -127,4 +127,4 @@ the watched repository, syncrowatch surfaces it with the ready-to-run
 ---
 
 `await SummonAsync();` — part of the summoner's kit  
-overmind · grimoire · squeezr · **▸ syncrowatch** · summonasync studio
+overmind · grimoire · squeezr · synchro · **▸ syncrowatch** · summonasync studio
