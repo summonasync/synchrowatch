@@ -1,4 +1,4 @@
-using Synchro.Core;
+using Syncrowatch.Core;
 using Syncrowatch.Core.History;
 
 namespace Syncrowatch.App.History;

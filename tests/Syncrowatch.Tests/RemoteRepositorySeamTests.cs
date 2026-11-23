@@ -1,6 +1,5 @@
 using NSubstitute;
 using Shouldly;
-using Synchro.Core;
 using Syncrowatch.Core;
 using Xunit;
 

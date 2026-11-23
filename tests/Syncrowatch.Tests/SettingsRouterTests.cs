@@ -1,8 +1,7 @@
 using NSubstitute;
 using Shouldly;
-using Synchro.Core;
-using Syncrowatch.App.Settings;
 using Syncrowatch.Core;
+using Syncrowatch.App.Settings;
 using Syncrowatch.Core.Config;
 using Xunit;
 

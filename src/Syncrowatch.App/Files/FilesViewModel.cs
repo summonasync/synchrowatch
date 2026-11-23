@@ -1,11 +1,10 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
-using Synchro.Core;
+using Syncrowatch.Core;
 using Syncrowatch.App.History;
 using Syncrowatch.App.Notifications;
 using Syncrowatch.App.Wizard;
-using Syncrowatch.Core;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.Engine;
 using Syncrowatch.Core.History;

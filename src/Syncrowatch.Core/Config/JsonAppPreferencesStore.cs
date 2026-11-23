@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Synchro.Core;
+using Syncrowatch.Core;
 
 namespace Syncrowatch.Core.Config;
 

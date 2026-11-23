@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
-using Synchro.Core;
+using Syncrowatch.Core;
 using Syncrowatch.App.Wizard;
 using Syncrowatch.Core.Engine.Conflicts;
 using Syncrowatch.Core.History;

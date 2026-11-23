@@ -1,8 +1,7 @@
 using Shouldly;
-using Synchro.Core;
+using Syncrowatch.Core;
 using Syncrowatch.App.Tray;
 using Syncrowatch.App.Wizard;
-using Syncrowatch.Core;
 using Syncrowatch.Core.History;
 using Xunit;
 

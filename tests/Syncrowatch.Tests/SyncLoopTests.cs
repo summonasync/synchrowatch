@@ -2,7 +2,6 @@ using System.Reflection;
 using NSubstitute;
 using NSubstitute.ReceivedExtensions;
 using Shouldly;
-using Synchro.Core;
 using Syncrowatch.Core;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.Engine;

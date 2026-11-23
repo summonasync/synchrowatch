@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
-using Synchro.Core;
 using Syncrowatch.Core;
 using Syncrowatch.Core.Bootstrap;
 using Syncrowatch.Core.Config;

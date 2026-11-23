@@ -1,11 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
-using Synchro.Core;
+using Syncrowatch.Core;
 using Syncrowatch.App;
 using Syncrowatch.App.Autostart;
 using Syncrowatch.App.Notifications;
 using Syncrowatch.App.Tray;
-using Syncrowatch.Core;
 using Syncrowatch.Core.Autostart;
 using Syncrowatch.Core.Bootstrap;
 using Syncrowatch.Core.Config;

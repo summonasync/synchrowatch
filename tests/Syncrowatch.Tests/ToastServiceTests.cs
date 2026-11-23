@@ -1,7 +1,6 @@
 using Shouldly;
-using Synchro.Core;
-using Syncrowatch.App.Notifications;
 using Syncrowatch.Core;
+using Syncrowatch.App.Notifications;
 using Syncrowatch.Core.History;
 using Xunit;
 

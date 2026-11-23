@@ -1,6 +1,6 @@
 using System.Security;
 using Microsoft.Win32;
-using Synchro.Core;
+using Syncrowatch.Core;
 
 namespace Syncrowatch.Core.Autostart;
 

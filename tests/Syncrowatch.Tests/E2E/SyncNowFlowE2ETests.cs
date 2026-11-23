@@ -1,9 +1,8 @@
 using Shouldly;
-using Synchro.Core;
+using Syncrowatch.Core;
 using Syncrowatch.App.Notifications;
 using Syncrowatch.App.Tray;
 using Syncrowatch.App.Wizard;
-using Syncrowatch.Core;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.Engine;
 using Syncrowatch.Core.History;

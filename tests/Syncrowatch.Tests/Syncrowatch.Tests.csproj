@@ -16,7 +16,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Synchro.Core\Synchro.Core.csproj" />
     <ProjectReference Include="..\..\src\Syncrowatch.Core\Syncrowatch.Core.csproj" />
     <ProjectReference Include="..\..\src\Syncrowatch.App\Syncrowatch.App.csproj" />
   </ItemGroup>

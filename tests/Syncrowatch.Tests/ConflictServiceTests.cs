@@ -1,5 +1,4 @@
 using Shouldly;
-using Synchro.Core;
 using Syncrowatch.Core;
 using Syncrowatch.Core.Engine.Conflicts;
 using Syncrowatch.Core.History;

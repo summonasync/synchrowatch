@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using Synchro.Core;
+using Syncrowatch.Core;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.History;
 using Syncrowatch.Core.Transport;

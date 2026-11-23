@@ -1,10 +1,9 @@
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
-using Synchro.Core;
+using Syncrowatch.Core;
 using Syncrowatch.App.Notifications;
 using Syncrowatch.App.Tray;
-using Syncrowatch.Core;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.Engine;
 using Syncrowatch.Core.History;

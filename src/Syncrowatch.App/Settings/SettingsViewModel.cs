@@ -1,9 +1,8 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
-using Synchro.Core;
-using Syncrowatch.App.Wizard;
 using Syncrowatch.Core;
+using Syncrowatch.App.Wizard;
 using Syncrowatch.Core.Autostart;
 using Syncrowatch.Core.Config;
 

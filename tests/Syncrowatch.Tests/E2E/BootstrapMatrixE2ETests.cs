@@ -1,5 +1,5 @@
 using Shouldly;
-using Synchro.Core;
+using Syncrowatch.Core;
 using Syncrowatch.Core.Bootstrap;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.Transport;

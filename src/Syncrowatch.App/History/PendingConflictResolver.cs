@@ -1,4 +1,4 @@
-using Synchro.Core;
+using Syncrowatch.Core;
 using Syncrowatch.Core.Config;
 using Syncrowatch.Core.Engine.Conflicts;
 using Syncrowatch.Core.Transport;

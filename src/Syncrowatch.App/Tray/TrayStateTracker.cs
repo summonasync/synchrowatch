@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using Synchro.Core;
 using Syncrowatch.Core;
 using Syncrowatch.Core.History;
 

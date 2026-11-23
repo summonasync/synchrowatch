@@ -1,5 +1,5 @@
 using Shouldly;
-using Synchro.Core;
+using Syncrowatch.Core;
 using Syncrowatch.Core.Relay;
 using Xunit;
 

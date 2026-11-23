@@ -1,8 +1,7 @@
 using NSubstitute;
 using Shouldly;
-using Synchro.Core;
-using Syncrowatch.App.History;
 using Syncrowatch.Core;
+using Syncrowatch.App.History;
 using Syncrowatch.Core.Engine.Conflicts;
 using Syncrowatch.Core.History;
 using HistoryConflict = Syncrowatch.Core.History.PendingConflict;

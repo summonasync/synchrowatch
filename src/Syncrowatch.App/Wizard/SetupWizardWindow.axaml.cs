@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Microsoft.Extensions.DependencyInjection;
-using Synchro.Core;
 using Syncrowatch.Core;
 using Syncrowatch.Core.Bootstrap;
 using Syncrowatch.Core.Config;

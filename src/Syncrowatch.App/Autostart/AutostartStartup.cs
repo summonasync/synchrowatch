@@ -1,4 +1,4 @@
-using Synchro.Core;
+using Syncrowatch.Core;
 using Syncrowatch.Core.Autostart;
 using Syncrowatch.Core.Config;
 

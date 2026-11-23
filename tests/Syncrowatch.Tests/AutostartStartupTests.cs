@@ -1,9 +1,8 @@
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
-using Synchro.Core;
-using Syncrowatch.App.Autostart;
 using Syncrowatch.Core;
+using Syncrowatch.App.Autostart;
 using Syncrowatch.Core.Autostart;
 using Syncrowatch.Core.Config;
 using Xunit;

@@ -1,4 +1,4 @@
-using Synchro.Core;
+using Syncrowatch.Core;
 using Syncrowatch.Core.History;
 using ConflictStore = Syncrowatch.Core.Engine.Conflicts.IConflictStore;
 using TrackedConflict = Syncrowatch.Core.Engine.Conflicts.ConflictRecord;

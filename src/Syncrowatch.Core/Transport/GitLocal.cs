@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text;
-using Synchro.Core;
+using Syncrowatch.Core;
 using Syncrowatch.Core.Config;
 
 namespace Syncrowatch.Core.Transport;
