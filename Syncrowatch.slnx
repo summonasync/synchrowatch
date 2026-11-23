@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Syncrowatch.App/Syncrowatch.App.csproj" />
+    <Project Path="src/Syncrowatch.Core/Syncrowatch.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Syncrowatch.Tests/Syncrowatch.Tests.csproj" />
+  </Folder>
+</Solution>
